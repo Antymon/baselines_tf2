@@ -1,8 +1,9 @@
 import tensorflow as tf
 import numpy as np
+import time
+from common.utils import total_episode_reward_logger
 
 tf.compat.v1.disable_eager_execution()
-
 
 class Buffer(object):
 
@@ -43,8 +44,12 @@ class Buffer(object):
                    self.dones[indeces,:]
 
 class NormalNoise(object):
-    def __init__(self):
-        pass
+    def __init__(self,std):
+        self.std = std
+
+    def apply(self,noiseless_value):
+        noisy_value = noiseless_value+np.random.normal(0,self.std,noiseless_value.size())
+        return noisy_value
 
 class MLPPolicy(object):
     def __init__(self,
@@ -73,15 +78,21 @@ class MLPPolicy(object):
         self.actor = actor
         self.critic = critic
 
-    def get_q(self, states, actions=None):
+    @tf.function
+    def get_a(self, state, training):
+        return self.actor(state, training)
+
+    @tf.function
+    def get_q(self, states, training, actions=None):
         if actions is None:
-            actions = self.actor(states)
+            actions = self.get_a(states, training)
 
         q_input = tf.concat([states,actions],-1)
-        qs = self.critic(q_input)
+        qs = self.critic(q_input, training)
 
         return qs
 
+    @tf.function
     def update_trainable_variables(self,tau,other_policy):
 
         other_variables = other_policy.actor.trainable_variables + other_policy.critic.trainable_variables
@@ -93,20 +104,46 @@ class MLPPolicy(object):
 
 
 class Runner(object):
-    def __init__(self, env, actor, rollout_steps, buffer):
+    def __init__(self, env, policy, rollout_steps, buffer,writer, noise):
         self.rollout_steps = rollout_steps
         self.env = env
         self.s = env.reset()
-        self.actor = actor
+        self.policy = policy
         self.buffer = buffer
+        self.writer = writer
+        self.episode_reward = np.zeros((1,))
+        self.num_timesteps = 0
+        self.noise = noise
 
     def run(self):
         for i in range(self.rollout_steps):
-            a = self.actor(self.s)
+            a = self.policy.get_a(self.s,False)
+
+            a = a.flatten()
+
             # add action noise
+            if self.noise is not None:
+                a = self.noise.apply(a)
+                a = np.clip(a, -1, 1)
+
+            # normalize action from tanh codomain and denormalize to action space
+            a = (a+1.)/2*(self.env.action_space.high - self.env.action_space.low) + self.env.action_space.low
+
             record = self.env.step(a)
+
+            if self.writer is not None:
+                _, reward, done, _ = record
+                self.write_to_tensorboard(reward,done)
+
             # skipping additional info at the end
             self.buffer.add(record[:-1])
+            self.num_timesteps += 1
+
+    def write_to_tensorboard(self, reward, done):
+        ep_rew = np.array([reward]).reshape((1, -1))
+        ep_done = np.array([done]).reshape((1, -1))
+        self.episode_reward = total_episode_reward_logger(self.episode_reward, ep_rew, ep_done,
+                                                          self.writer, self.num_timesteps)
 
 class DDPG2(object):
     def __init__(self,
@@ -145,22 +182,20 @@ class DDPG2(object):
         act_fn = self.policy_kwargs['act_fn']
 
         self.target_network = MLPPolicy(action_space_size,observation_space_size,layers,act_fn)
-        self.behavioral_network = MLPPolicy(action_space_size, observation_space_size, layers, act_fn)
+        self.behavioral_network = MLPPolicy(action_space_size, observation_space_size, layers, act_fn, noise=self.noise)
 
         self.buffer = Buffer(self.replay_size,action_space_size,observation_space_size)
-        self.runner = Runner(self.env,self.n_rollout_steps,self.buffer)
 
-        self.actor_optimizer = tf.keras.optimizers.Adam()
-        self.critic_optimizer = tf.keras.optimizers.Adam()
+        writer = tf.summary.create_file_writer("./tensorboard/DDPG_{}".format(time.time()))
 
-        self.init_networks()
+        self.runner = Runner(self.env,self.behavioral_network.actor,self.n_rollout_steps,self.buffer, writer, self.noise)
 
-    @tf.function
-    def init_networks(self):
+        self.actor_optimizer = tf.keras.optimizers.Adam(learning_rate=self.actor_lr)
+        self.critic_optimizer = tf.keras.optimizers.Adam(learning_rate=self.critic_lr)
+
         self.target_network.update_trainable_variables(1.,self.behavioral_network)
 
     def learn(self, total_timesteps):
-
         rollout_steps=0
 
         while rollout_steps < total_timesteps:
@@ -170,32 +205,33 @@ class DDPG2(object):
 
             if self.buffer.can_sample(self.replay_size):
                 for i in range(self.train_step):
-                    self.train_step()
+                    data = self.buffer.sample(self.batch_size)
+                    self.train_step(data)
 
 
-    def get_losses(self,behavioral_policy,target_policy):
+    def get_losses(self,behavioral_policy,target_policy, data):
 
-        states_t0, actions, rewards, states_t1, dones = self.buffer.sample(self.batch_size)
+        states_t0, actions, rewards, states_t1, dones = data
 
         # actor is meant to maximize q_value
 
-        qs = behavioral_policy.get_q(states_t0)
+        qs = behavioral_policy.get_q(states_t0, training=True)
         actor_loss = tf.negative(tf.reduce_mean(qs))
 
         # critic is meant to minimize Bellman error
 
         not_dones = tf.ones_like(dones)-dones
-        targets = rewards + self.gamma*not_dones*target_policy.get_q(states_t1)
-        bellman_error = behavioral_policy.get_q(states_t0,actions)-targets
+        targets = rewards + self.gamma*not_dones*target_policy.get_q(states_t1, training=True)
+        bellman_error = behavioral_policy.get_q(states_t0, training=True,actions=actions)-targets
         critic_loss = tf.reduce_mean(tf.square(bellman_error))
 
         return actor_loss, critic_loss
 
 
     @tf.function
-    def train_step(self):
+    def train_step(self, data):
         with tf.GradientTape() as tape:
-            actor_loss, critic_loss = self.get_losses(self.behavioral_network,self.target_network)
+            actor_loss, critic_loss = self.get_losses(self.behavioral_network,self.target_network, data)
 
         actor_variables = self.behavioral_network.actor.trainable_variables
         critic_variables = self.behavioral_network.critic.trainable_variables
