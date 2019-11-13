@@ -162,10 +162,10 @@ class DDPG2(object):
     def __init__(self,
                  env,
                  policy_kwargs,
-                 n_rollout_steps,
-                 n_train_steps,
+                 nb_rollout_steps,
+                 nb_train_steps,
                  batch_size,
-                 replay_size,
+                 buffer_size,
                  actor_lr=1e-4,
                  critic_lr=1e-3,
                  gamma=0.99,
@@ -175,10 +175,10 @@ class DDPG2(object):
                  ):
         self.env = env
         self.policy_kwargs = policy_kwargs
-        self.n_rollout_steps = n_rollout_steps
-        self.n_train_steps = n_train_steps
+        self.n_rollout_steps = nb_rollout_steps
+        self.n_train_steps = nb_train_steps
         self.batch_size = batch_size
-        self.replay_size = replay_size
+        self.replay_size = buffer_size
         self.actor_lr = actor_lr
         self.critic_lr = critic_lr
         self.gamma = gamma

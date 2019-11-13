@@ -35,10 +35,10 @@ class AlgorithmTest(unittest.TestCase):
         alg = DDPG2(
             env,
             policy_kwargs,
-            n_rollout_steps=20,
-            n_train_steps=1,
+            nb_rollout_steps=20,
+            nb_train_steps=1,
             batch_size=5,
-            replay_size=10,
+            buffer_size=10,
             noise=NormalNoise(0.25))
 
         cached_tensors=[]
