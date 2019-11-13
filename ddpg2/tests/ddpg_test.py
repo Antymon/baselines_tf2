@@ -19,23 +19,48 @@ class MyTestCase(unittest.TestCase):
         sum_sq = 0
 
         # after init networks should be identical
-        for (var1,var2) in zip(alg.behavioral_network._actor.trainable_variables+alg.behavioral_network._critic.trainable_variables,
-                                alg.target_network._actor.trainable_variables+alg.target_network._critic.trainable_variables
+        for (var1,var2) in zip(alg.behavioral_policy._actor.trainable_variables+alg.behavioral_policy._critic.trainable_variables,
+                                alg.target_policy._actor.trainable_variables+alg.target_policy._critic.trainable_variables
                                ):
-            sum_sq_diff+=np.sum(np.square(var1.numpy()-var2.numpy()))
-            sum_sq+=np.sum(np.square(var1.numpy()))
-            # print(var2.numpy())
+            sum_sq_diff+=np.sum(np.abs(var1.numpy()-var2.numpy()))
+            sum_sq+=np.sum(np.abs(var1.numpy()))
 
-        self.assertAlmostEqual(sum_sq_diff,0,delta=1e-3)
-        self.assertNotAlmostEqual(sum_sq,0,delta=1e-3)
+        self.assertAlmostEqual(sum_sq_diff,0,delta=alg.tau)
+        self.assertNotAlmostEqual(sum_sq,0,delta=alg.tau)
 
-    def test_startup(self):
+    def test_learn(self):
         env = gym.make('MountainCarContinuous-v0')
         policy_kwargs = {'layers': [4, 4], 'act_fn': tf.keras.activations.tanh}
 
-        alg = DDPG2(env, policy_kwargs, 20, 1, 5, 10, noise=NormalNoise(0.25))
+        alg = DDPG2(
+            env,
+            policy_kwargs,
+            n_rollout_steps=20,
+            n_train_steps=1,
+            batch_size=5,
+            replay_size=10,
+            noise=NormalNoise(0.25))
+
+        cached_tensors=[]
+        for t in (alg.target_policy._actor.trainable_variables+alg.target_policy._critic.trainable_variables):
+            cached_tensors.append(t.numpy())
 
         alg.learn(1)
+
+        sum_sq_diff = 0
+        sum_sq = 0
+
+        # after one step weights should be intorpolated
+        for (var1,var2,cached_var2) in zip(
+                alg.behavioral_policy._actor.trainable_variables+alg.behavioral_policy._critic.trainable_variables,
+                alg.target_policy._actor.trainable_variables+alg.target_policy._critic.trainable_variables,
+                cached_tensors
+                               ):
+            sum_sq_diff+=np.sum(np.abs(var2.numpy()-(1-alg.tau)*cached_var2-alg.tau*var1.numpy()))
+            sum_sq+=np.sum(np.abs(var2.numpy()))
+
+        self.assertAlmostEqual(sum_sq_diff,0,delta=alg.tau)
+        self.assertNotAlmostEqual(sum_sq,0,delta=alg.tau)
 
 
 if __name__ == '__main__':

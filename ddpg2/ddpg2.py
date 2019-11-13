@@ -211,7 +211,7 @@ class DDPG2(object):
             self.runner.run(self.n_rollout_steps)
             current_rollout_steps+=self.n_rollout_steps
 
-            if self.buffer.can_sample(self.replay_size):
+            if self.buffer.can_sample(self.batch_size):
                 for i in range(self.n_train_steps):
                     data = self.buffer.sample(self.batch_size)
                     # data = tuple(tf.convert_to_tensor(d) for d in data)
