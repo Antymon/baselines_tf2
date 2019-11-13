@@ -10,15 +10,14 @@ class Buffer(object):
     def __init__(self, size, action_space_size, observation_space_size):
         self.size = size
         self.current_size = 0
-        self.rewards = np.zeros((size,1))
-        self.states_t0 = np.zeros((size,observation_space_size))
-        self.states_t1 = np.zeros((size,observation_space_size))
-        self.actions = np.zeros((size,action_space_size))
-        self.dones = np.zeros((size,1))
+        self.rewards = np.zeros((size,1),dtype=np.float32)
+        self.states_t0 = np.zeros((size,observation_space_size),dtype=np.float32)
+        self.states_t1 = np.zeros((size,observation_space_size),dtype=np.float32)
+        self.actions = np.zeros((size,action_space_size),dtype=np.float32)
+        self.dones = np.zeros((size,1),dtype=np.float32)
         self.index = 0
 
-    def add(self, record):
-        st0,a,r,st1,d = record
+    def add(self, st0,a,r,st1,d):
 
         self.states_t0[self.index,:] = st0
         self.states_t1[self.index,:] = st1
@@ -30,7 +29,7 @@ class Buffer(object):
         self.current_size = min(self.size,self.current_size+1)
 
     def can_sample(self,size):
-        return self.current_size > size
+        return self.current_size >= size
 
     def sample(self,size):
         if not self.can_sample(size):
@@ -57,36 +56,40 @@ class MLPPolicy(object):
                  obs_space_size,
                  layers,
                  act_fn):
-        self.critic = None
+        self._critic = None
+
+        kwargs=dict(dtype=tf.float32)
 
         actor = tf.keras.Sequential()
         critic = tf.keras.Sequential()
 
-        actor.add(tf.keras.layers.Dense(layers[0], activation=act_fn, input_shape=(obs_space_size,)))
-        critic.add(tf.keras.layers.Dense(layers[0], activation=act_fn, input_shape=(obs_space_size+action_space_size,)))
+        actor.add(tf.keras.layers.Dense(layers[0], input_shape=(obs_space_size,),**kwargs))
+        critic.add(tf.keras.layers.Dense(layers[0], activation=act_fn, input_shape=(obs_space_size+action_space_size,),**kwargs))
 
         for i in range(1,len(layers)):
-            actor.add(tf.keras.layers.Dense(layers[i], activation=act_fn))
-            critic.add(tf.keras.layers.Dense(layers[i], activation=act_fn))
+            actor.add(tf.keras.layers.Dense(layers[i], activation=act_fn,**kwargs))
+            critic.add(tf.keras.layers.Dense(layers[i], activation=act_fn,**kwargs))
 
-        actor.add(tf.keras.layers.Dense(action_space_size, activation=tf.keras.activations.tanh))
-        critic.add(tf.keras.layers.Dense(1))
+        actor.add(tf.keras.layers.Dense(action_space_size, activation=tf.keras.activations.tanh,**kwargs))
+        critic.add(tf.keras.layers.Dense(1,**kwargs))
 
         actor.build()
         critic.build()
 
-        self.actor = actor
-        self.critic = critic
+        self._actor = actor
+        self._critic = critic
 
+    @tf.function
     def get_a(self, state, training):
-        return self.actor(state, training=training)
+        return self._actor(state, training=training)
 
+    @tf.function
     def get_q(self, states, actions=None):
         if actions is None:
             actions = self.get_a(states, training=True)
 
         q_input = tf.concat([states,actions],-1)
-        qs = self.critic(q_input, training=True)
+        qs = self._critic(q_input, training=True)
 
         return qs
 
@@ -94,7 +97,7 @@ class MLPPolicy(object):
     def update_trainable_variables(self,tau,other_policy):
 
         other_variables = other_policy.actor.trainable_variables + other_policy.critic.trainable_variables
-        self_variables = self.actor.trainable_variables + self.critic.trainable_variables
+        self_variables = self._actor.trainable_variables + self._critic.trainable_variables
 
         for (self_var,other_var) in zip(self_variables,other_variables):
             self_var.assign((1. - tau)*self_var+tau*other_var)
@@ -102,10 +105,12 @@ class MLPPolicy(object):
 
 
 class Runner(object):
-    def __init__(self, env, policy, rollout_steps, buffer,writer, noise):
-        self.rollout_steps = rollout_steps
+    def __init__(self, env, policy, buffer, writer=None, noise=None):
         self.env = env
-        self.s = env.reset()
+
+        st0 = env.reset()
+
+        self.st0 = st0.reshape((1,st0.shape[0]))
         self.policy = policy
         self.buffer = buffer
         self.writer = writer
@@ -113,29 +118,32 @@ class Runner(object):
         self.num_timesteps = 0
         self.noise = noise
 
-    def run(self):
-        for i in range(self.rollout_steps):
-            a = self.policy.get_a(self.s, training=False)
+    def run(self, rollout_steps):
+        for i in range(rollout_steps):
+            a = self.policy.get_a(self.st0, training=False)
 
-            a = a.flatten()
+            a = a.numpy().flatten()
 
             # add action noise
             if self.noise is not None:
                 a = self.noise.apply(a)
                 a = np.clip(a, -1, 1)
 
-            # normalize action from tanh codomain and denormalize to action space
-            a = (a+1.)/2*(self.env.action_space.high - self.env.action_space.low) + self.env.action_space.low
+            a = self.scale_action(a)
 
-            record = self.env.step(a)
+            st1, reward, done, _ = self.env.step(a)
 
             if self.writer is not None:
-                _, reward, done, _ = record
                 self.write_to_tensorboard(reward,done)
 
-            # skipping additional info at the end
-            self.buffer.add(record[:-1])
+            self.buffer.add(self.st0,a,reward,st1,done)
             self.num_timesteps += 1
+
+            self.st0 = st1.reshape(self.st0.shape)
+
+    def scale_action(self, a):
+        # normalize action from tanh codomain and denormalize to action space
+        return (a + 1.) / 2 * (self.env.action_space.high - self.env.action_space.low) + self.env.action_space.low
 
     def write_to_tensorboard(self, reward, done):
         ep_rew = np.array([reward]).reshape((1, -1))
@@ -186,7 +194,7 @@ class DDPG2(object):
 
         writer = tf.summary.create_file_writer("./tensorboard/DDPG_{}".format(time.time()))
 
-        self.runner = Runner(self.env,self.behavioral_network.actor,self.n_rollout_steps,self.buffer, writer, self.noise)
+        self.runner = Runner(self.env, self.behavioral_network, self.n_rollout_steps, self.buffer, writer, self.noise)
 
         self.actor_optimizer = tf.keras.optimizers.Adam(learning_rate=self.actor_lr)
         self.critic_optimizer = tf.keras.optimizers.Adam(learning_rate=self.critic_lr)
@@ -200,16 +208,16 @@ class DDPG2(object):
 
         while rollout_steps < total_timesteps:
 
-            self.runner.run()
+            self.runner.run(self.n_rollout_steps)
             rollout_steps+=rollout_steps
 
             if self.buffer.can_sample(self.replay_size):
                 for i in range(self.train_step):
                     data = self.buffer.sample(self.batch_size)
-                    tensor_data = tuple(tf.convert_to_tensor(d) for d in data)
-                    self.train_step(*tensor_data)
+                    # data = tuple(tf.convert_to_tensor(d) for d in data)
+                    self.train_step(*data)
 
-
+    @tf.function
     def get_losses(self, states_t0, actions, rewards, states_t1, dones):
 
         # actor is meant to maximize q_value
@@ -230,8 +238,8 @@ class DDPG2(object):
     @tf.function
     def train_step(self, states_t0, actions, rewards, states_t1, dones):
 
-        actor_variables = self.behavioral_network.actor.trainable_variables
-        critic_variables = self.behavioral_network.critic.trainable_variables
+        actor_variables = self.behavioral_network._actor.trainable_variables
+        critic_variables = self.behavioral_network._critic.trainable_variables
 
         with tf.GradientTape() as tape:
             tape.watch(actor_variables)
