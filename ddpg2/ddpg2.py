@@ -47,7 +47,7 @@ class NormalNoise(object):
         self.std = std
 
     def apply(self,noiseless_value):
-        noisy_value = noiseless_value+np.random.normal(0,self.std,noiseless_value.size())
+        noisy_value = noiseless_value+np.random.normal(0,self.std,noiseless_value.shape)
         return noisy_value
 
 class MLPPolicy(object):

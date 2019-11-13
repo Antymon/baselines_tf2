@@ -3,7 +3,7 @@ from ddpg2 import Buffer
 
 import numpy as np
 
-class TestReplayBuffer(unittest.TestCase):
+class BufferTest(unittest.TestCase):
     def test_can_sample(self):
         # env = gym.make('MountainCarContinuous-v0')
 
