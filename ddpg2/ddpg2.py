@@ -175,10 +175,10 @@ class DDPG2(object):
                  ):
         self.env = env
         self.policy_kwargs = policy_kwargs
-        self.n_rollout_steps = nb_rollout_steps
-        self.n_train_steps = nb_train_steps
+        self.nb_rollout_steps = nb_rollout_steps
+        self.nb_train_steps = nb_train_steps
         self.batch_size = batch_size
-        self.replay_size = buffer_size
+        self.buffer_size = buffer_size
         self.actor_lr = actor_lr
         self.critic_lr = critic_lr
         self.gamma = gamma
@@ -197,7 +197,7 @@ class DDPG2(object):
         self.target_policy = MLPPolicy(action_space_size, observation_space_size, layers, act_fn)
         self.behavioral_policy = MLPPolicy(action_space_size, observation_space_size, layers, act_fn)
 
-        self.buffer = Buffer(self.replay_size, action_space_size, observation_space_size)
+        self.buffer = Buffer(self.buffer_size, action_space_size, observation_space_size)
 
         writer = tf.summary.create_file_writer("./tensorboard/DDPG_{}".format(time.time()))
 
@@ -215,11 +215,11 @@ class DDPG2(object):
 
         while current_rollout_steps < total_timesteps:
 
-            self.runner.run(self.n_rollout_steps)
-            current_rollout_steps += self.n_rollout_steps
+            self.runner.run(self.nb_rollout_steps)
+            current_rollout_steps += self.nb_rollout_steps
 
             if self.buffer.can_sample(self.batch_size):
-                for i in range(self.n_train_steps):
+                for i in range(self.nb_train_steps):
                     data = self.buffer.sample(self.batch_size)
                     # data = tuple(tf.convert_to_tensor(d) for d in data)
                     self.train_step(*data)
