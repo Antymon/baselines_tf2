@@ -3,7 +3,7 @@ import numpy as np
 import time
 from common.utils import total_episode_reward_logger
 
-tf.compat.v1.disable_eager_execution()
+# tf.compat.v1.disable_eager_execution()
 
 class Buffer(object):
 
@@ -78,17 +78,15 @@ class MLPPolicy(object):
         self.actor = actor
         self.critic = critic
 
-    @tf.function
     def get_a(self, state, training):
-        return self.actor(state, training)
+        return self.actor(state, training=training)
 
-    @tf.function
-    def get_q(self, states, training, actions=None):
+    def get_q(self, states, actions=None):
         if actions is None:
-            actions = self.get_a(states, training)
+            actions = self.get_a(states, training=True)
 
         q_input = tf.concat([states,actions],-1)
-        qs = self.critic(q_input, training)
+        qs = self.critic(q_input, training=True)
 
         return qs
 
@@ -117,7 +115,7 @@ class Runner(object):
 
     def run(self):
         for i in range(self.rollout_steps):
-            a = self.policy.get_a(self.s,False)
+            a = self.policy.get_a(self.s, training=False)
 
             a = a.flatten()
 
@@ -182,7 +180,7 @@ class DDPG2(object):
         act_fn = self.policy_kwargs['act_fn']
 
         self.target_network = MLPPolicy(action_space_size,observation_space_size,layers,act_fn)
-        self.behavioral_network = MLPPolicy(action_space_size, observation_space_size, layers, act_fn, noise=self.noise)
+        self.behavioral_network = MLPPolicy(action_space_size, observation_space_size, layers, act_fn)
 
         self.buffer = Buffer(self.replay_size,action_space_size,observation_space_size)
 
@@ -193,7 +191,9 @@ class DDPG2(object):
         self.actor_optimizer = tf.keras.optimizers.Adam(learning_rate=self.actor_lr)
         self.critic_optimizer = tf.keras.optimizers.Adam(learning_rate=self.critic_lr)
 
+        # tf.config.experimental_run_functions_eagerly(True)
         self.target_network.update_trainable_variables(1.,self.behavioral_network)
+        # tf.config.experimental_run_functions_eagerly(False)
 
     def learn(self, total_timesteps):
         rollout_steps=0
@@ -206,35 +206,37 @@ class DDPG2(object):
             if self.buffer.can_sample(self.replay_size):
                 for i in range(self.train_step):
                     data = self.buffer.sample(self.batch_size)
-                    self.train_step(data)
+                    tensor_data = tuple(tf.convert_to_tensor(d) for d in data)
+                    self.train_step(*tensor_data)
 
 
-    def get_losses(self,behavioral_policy,target_policy, data):
-
-        states_t0, actions, rewards, states_t1, dones = data
+    def get_losses(self, states_t0, actions, rewards, states_t1, dones):
 
         # actor is meant to maximize q_value
 
-        qs = behavioral_policy.get_q(states_t0, training=True)
+        qs = self.behavioral_policy.get_q(states_t0)
         actor_loss = tf.negative(tf.reduce_mean(qs))
 
         # critic is meant to minimize Bellman error
 
         not_dones = tf.ones_like(dones)-dones
-        targets = rewards + self.gamma*not_dones*target_policy.get_q(states_t1, training=True)
-        bellman_error = behavioral_policy.get_q(states_t0, training=True,actions=actions)-targets
+        targets = rewards + self.gamma*not_dones*self.target_policy.get_q(states_t1)
+        bellman_error = self.behavioral_policy.get_q(states_t0,actions=actions)-targets
         critic_loss = tf.reduce_mean(tf.square(bellman_error))
 
         return actor_loss, critic_loss
 
 
     @tf.function
-    def train_step(self, data):
-        with tf.GradientTape() as tape:
-            actor_loss, critic_loss = self.get_losses(self.behavioral_network,self.target_network, data)
+    def train_step(self, states_t0, actions, rewards, states_t1, dones):
 
         actor_variables = self.behavioral_network.actor.trainable_variables
         critic_variables = self.behavioral_network.critic.trainable_variables
+
+        with tf.GradientTape() as tape:
+            tape.watch(actor_variables)
+            tape.watch(critic_variables)
+            actor_loss, critic_loss = self.get_losses(states_t0, actions, rewards, states_t1, dones)
 
         actor_grad = tape.Gradient(actor_loss,actor_variables)
         critic_grad = tape.Gradient(critic_loss,critic_variables)
@@ -243,4 +245,3 @@ class DDPG2(object):
         self.critic_optimizer.apply_gradients(zip(critic_grad,critic_variables))
 
         self.target_network.update_trainable_variables(self.tau,self.behavioral_network)
-            
