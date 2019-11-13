@@ -96,7 +96,7 @@ class MLPPolicy(object):
     @tf.function
     def update_trainable_variables(self,tau,other_policy):
 
-        other_variables = other_policy.actor.trainable_variables + other_policy.critic.trainable_variables
+        other_variables = other_policy._actor.trainable_variables + other_policy._critic.trainable_variables
         self_variables = self._actor.trainable_variables + self._critic.trainable_variables
 
         for (self_var,other_var) in zip(self_variables,other_variables):
@@ -194,7 +194,7 @@ class DDPG2(object):
 
         writer = tf.summary.create_file_writer("./tensorboard/DDPG_{}".format(time.time()))
 
-        self.runner = Runner(self.env, self.behavioral_network, self.n_rollout_steps, self.buffer, writer, self.noise)
+        self.runner = Runner(self.env, self.behavioral_network, self.buffer, writer, self.noise)
 
         self.actor_optimizer = tf.keras.optimizers.Adam(learning_rate=self.actor_lr)
         self.critic_optimizer = tf.keras.optimizers.Adam(learning_rate=self.critic_lr)
