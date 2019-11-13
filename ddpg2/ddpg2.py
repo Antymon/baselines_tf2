@@ -178,53 +178,58 @@ class DDPG2(object):
         self.tau = tau
         self.noise = noise
 
-        self.setup_model()
-
-    def setup_model(self):
+    #     self.setup_model()
+    #
+    # def setup_model(self):
 
         action_space_size = self.env.action_space.shape[0]
         observation_space_size = self.env.observation_space.shape[0]
         layers = self.policy_kwargs['layers']
         act_fn = self.policy_kwargs['act_fn']
 
-        self.target_network = MLPPolicy(action_space_size,observation_space_size,layers,act_fn)
-        self.behavioral_network = MLPPolicy(action_space_size, observation_space_size, layers, act_fn)
+        self.target_policy = MLPPolicy(action_space_size,observation_space_size,layers,act_fn)
+        self.behavioral_policy = MLPPolicy(action_space_size, observation_space_size, layers, act_fn)
 
         self.buffer = Buffer(self.replay_size,action_space_size,observation_space_size)
 
         writer = tf.summary.create_file_writer("./tensorboard/DDPG_{}".format(time.time()))
 
-        self.runner = Runner(self.env, self.behavioral_network, self.buffer, writer, self.noise)
+        self.runner = Runner(self.env, self.behavioral_policy, self.buffer, writer, self.noise)
 
         self.actor_optimizer = tf.keras.optimizers.Adam(learning_rate=self.actor_lr)
         self.critic_optimizer = tf.keras.optimizers.Adam(learning_rate=self.critic_lr)
 
         # tf.config.experimental_run_functions_eagerly(True)
-        self.target_network.update_trainable_variables(1.,self.behavioral_network)
+        self.target_policy.update_trainable_variables(1.,self.behavioral_policy)
         # tf.config.experimental_run_functions_eagerly(False)
 
     def learn(self, total_timesteps):
-        rollout_steps=0
+        current_rollout_steps=0
 
-        while rollout_steps < total_timesteps:
+        while current_rollout_steps < total_timesteps:
 
             self.runner.run(self.n_rollout_steps)
-            rollout_steps+=rollout_steps
+            current_rollout_steps+=self.n_rollout_steps
 
             if self.buffer.can_sample(self.replay_size):
-                for i in range(self.train_step):
+                for i in range(self.n_train_steps):
                     data = self.buffer.sample(self.batch_size)
                     # data = tuple(tf.convert_to_tensor(d) for d in data)
                     self.train_step(*data)
 
     @tf.function
-    def get_losses(self, states_t0, actions, rewards, states_t1, dones):
+    def get_actor_loss(self, states_t0):
 
         # actor is meant to maximize q_value
 
         qs = self.behavioral_policy.get_q(states_t0)
         actor_loss = tf.negative(tf.reduce_mean(qs))
+        return actor_loss
 
+
+
+    @tf.function
+    def get_critic_loss(self, states_t0, actions, rewards, states_t1, dones):
         # critic is meant to minimize Bellman error
 
         not_dones = tf.ones_like(dones)-dones
@@ -232,24 +237,28 @@ class DDPG2(object):
         bellman_error = self.behavioral_policy.get_q(states_t0,actions=actions)-targets
         critic_loss = tf.reduce_mean(tf.square(bellman_error))
 
-        return actor_loss, critic_loss
+        return critic_loss
 
 
     @tf.function
     def train_step(self, states_t0, actions, rewards, states_t1, dones):
 
-        actor_variables = self.behavioral_network._actor.trainable_variables
-        critic_variables = self.behavioral_network._critic.trainable_variables
+        actor_variables = self.behavioral_policy._actor.trainable_variables
+        critic_variables = self.behavioral_policy._critic.trainable_variables
 
-        with tf.GradientTape() as tape:
-            tape.watch(actor_variables)
-            tape.watch(critic_variables)
-            actor_loss, critic_loss = self.get_losses(states_t0, actions, rewards, states_t1, dones)
+        with tf.GradientTape() as actor_tape:
+            actor_tape.watch(actor_variables)
+            actor_loss = self.get_actor_loss(states_t0)
 
-        actor_grad = tape.Gradient(actor_loss,actor_variables)
-        critic_grad = tape.Gradient(critic_loss,critic_variables)
+        actor_grad = actor_tape.gradient(actor_loss, actor_variables)
+
+        with tf.GradientTape() as critic_tape:
+            critic_tape.watch(critic_variables)
+            critic_loss = self.get_critic_loss(states_t0, actions, rewards, states_t1, dones)
+
+        critic_grad = critic_tape.gradient(critic_loss,critic_variables)
 
         self.actor_optimizer.apply_gradients(zip(actor_grad,actor_variables))
         self.critic_optimizer.apply_gradients(zip(critic_grad,critic_variables))
 
-        self.target_network.update_trainable_variables(self.tau,self.behavioral_network)
+        self.target_policy.update_trainable_variables(self.tau,self.behavioral_policy)

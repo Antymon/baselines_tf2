@@ -18,6 +18,7 @@ class MyTestCase(unittest.TestCase):
         sum_sq_diff = 0
         sum_sq = 0
 
+        # after init networks should be identical
         for (var1,var2) in zip(alg.behavioral_network._actor.trainable_variables+alg.behavioral_network._critic.trainable_variables,
                                 alg.target_network._actor.trainable_variables+alg.target_network._critic.trainable_variables
                                ):
@@ -27,6 +28,15 @@ class MyTestCase(unittest.TestCase):
 
         self.assertAlmostEqual(sum_sq_diff,0,delta=1e-3)
         self.assertNotAlmostEqual(sum_sq,0,delta=1e-3)
+
+    def test_startup(self):
+        env = gym.make('MountainCarContinuous-v0')
+        policy_kwargs = {'layers': [4, 4], 'act_fn': tf.keras.activations.tanh}
+
+        alg = DDPG2(env, policy_kwargs, 20, 1, 5, 10, noise=NormalNoise(0.25))
+
+        alg.learn(1)
+
 
 if __name__ == '__main__':
     unittest.main()
