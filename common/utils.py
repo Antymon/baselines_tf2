@@ -20,13 +20,11 @@ def total_episode_reward_logger(rew_acc, rewards, masks, writer, steps):
             rew_acc[env_idx] += sum(rewards[env_idx])
         else:
             rew_acc[env_idx] += sum(rewards[env_idx, :dones_idx[0, 0]])
-
-            wrap_and_write(writer, rew_acc[env_idx], steps + dones_idx[0, 0])
-            writer.flush()
+            write_reward(writer, rew_acc[env_idx], steps + dones_idx[0, 0])
 
             for k in range(1, len(dones_idx[:, 0])):
                 rew_acc[env_idx] = sum(rewards[env_idx, dones_idx[k-1, 0]:dones_idx[k, 0]])
-                wrap_and_write(writer, rew_acc[env_idx], steps + dones_idx[k, 0])
+                write_reward(writer, rew_acc[env_idx], steps + dones_idx[k, 0])
 
             rew_acc[env_idx] = sum(rewards[env_idx, dones_idx[-1, 0]:])
 
@@ -35,13 +33,14 @@ def total_episode_reward_logger(rew_acc, rewards, masks, writer, steps):
 # if plain scalars are sent to a tf.function new graph will be created each time vals are changed
 # so they are packed here... to get unpacked later
 # numpy arrays are accepted as proxy for tensors, i.e. their values do not create new cache entries
-def wrap_and_write(writer, reward, step):
+def write_reward(writer, reward, step):
     np_reward = np.atleast_1d(reward)
     np_step = np.atleast_1d(step)
-    write_reward(writer,np_reward,np_step)
+    write_scalar("environment_info/episode_reward",writer, np_reward, np_step)
+    writer.flush()
 
 @tf.function
-def write_reward(writer, reward, step):
+def write_scalar(ticker, writer, value, step):
     with writer.as_default():
         # other model code would go here
-        tf.summary.scalar("environment_info/episode_reward", reward[0], step=step[0])
+        tf.summary.scalar(ticker, value[0], step=step[0])
