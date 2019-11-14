@@ -1,8 +1,8 @@
 from collections import OrderedDict
 import numpy as np
 
-from deps.vec_env import VecEnv
-from deps.vec_env.util import copy_obs_dict, dict_to_obs, obs_space_info
+from ddpg2.deps.vec_env.base_vec_env import VecEnv
+from ddpg2.deps.vec_env.util import copy_obs_dict, dict_to_obs, obs_space_info
 
 
 class DummyVecEnv(VecEnv):

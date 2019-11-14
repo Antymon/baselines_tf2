@@ -1,8 +1,8 @@
 import tensorflow as tf
 import numpy as np
 import time
-from common.utils import total_episode_reward_logger
-from deps.vec_env import VecEnv
+from ddpg2.common.utils import total_episode_reward_logger
+from ddpg2.deps.vec_env import VecEnv
 
 # tf.compat.v1.disable_eager_execution()
 
@@ -58,31 +58,36 @@ class MLPPolicy(object):
                  action_space_size,
                  obs_space_size,
                  layers,
-                 act_fn):
+                 act_fn,
+                 layer_norm=False):
         self._critic = None
 
-        kwargs = dict(dtype=tf.float32)
+        self.act_fn = act_fn
+        self.layer_norm = layer_norm
 
         actor = tf.keras.Sequential()
         critic = tf.keras.Sequential()
 
-        actor.add(tf.keras.layers.Dense(layers[0], input_shape=(obs_space_size,), **kwargs))
-        critic.add(
-            tf.keras.layers.Dense(layers[0], activation=act_fn, input_shape=(obs_space_size + action_space_size,),
-                                  **kwargs))
+        self.add_segment(actor,layers[0],input_shape=(obs_space_size,))
+        self.add_segment(critic,layers[0],input_shape=(obs_space_size + action_space_size,))
 
         for i in range(1, len(layers)):
-            actor.add(tf.keras.layers.Dense(layers[i], activation=act_fn, **kwargs))
-            critic.add(tf.keras.layers.Dense(layers[i], activation=act_fn, **kwargs))
+            self.add_segment(actor,layers[i])
+            self.add_segment(critic,layers[i])
 
-        actor.add(tf.keras.layers.Dense(action_space_size, activation=tf.keras.activations.tanh, **kwargs))
-        critic.add(tf.keras.layers.Dense(1, **kwargs))
+        actor.add(tf.keras.layers.Dense(action_space_size, activation=tf.keras.activations.tanh, dtype=tf.float32))
+        critic.add(tf.keras.layers.Dense(1, dtype=tf.float32))
 
         actor.build()
         critic.build()
 
         self._actor = actor
         self._critic = critic
+
+    def add_segment(self, network, output_shape, **kwargs):
+        network.add(tf.keras.layers.Dense(output_shape,dtype=tf.float32,activation=self.act_fn,**kwargs))
+        if self.layer_norm:
+            network.add(tf.keras.layers.LayerNormalization(center=True, scale=True))
 
     @tf.function
     def get_a(self, state, training):
