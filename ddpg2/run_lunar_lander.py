@@ -10,7 +10,7 @@ from deps.vec_env.vec_normalize import VecNormalize
 from deps.vec_env.dummy_vec_env import DummyVecEnv
 
 if __name__ == '__main__':
-    env = gym.make('MountainCarContinuous-v0')
+    env = gym.make('LunarLanderContinuous-v2')
     env = DummyVecEnv([lambda: env])  # The algorithms require a vectorized environment to run
     env = VecNormalize(env, norm_obs=True, norm_reward=False,clip_obs=10.)
 
