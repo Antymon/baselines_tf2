@@ -3,8 +3,6 @@ import inspect
 import pickle
 
 import cloudpickle
-from stable_baselines import logger
-
 
 class AlreadySteppingError(Exception):
     """
@@ -145,8 +143,6 @@ class VecEnv(ABC):
 
         :param mode: (str) the rendering type
         """
-        logger.warn('Render not defined for %s' % self)
-
     @property
     def unwrapped(self):
         if isinstance(self, VecEnvWrapper):

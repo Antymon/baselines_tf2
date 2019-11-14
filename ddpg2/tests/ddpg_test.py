@@ -13,7 +13,7 @@ class AlgorithmTest(unittest.TestCase):
         env = gym.make('MountainCarContinuous-v0')
         policy_kwargs = {'layers': [4, 4], 'act_fn': tf.keras.activations.tanh}
 
-        alg = DDPG2(env, policy_kwargs, 500, 250, 1024, int(5e4), noise=NormalNoise(0.25))
+        alg = DDPG2(env, policy_kwargs, 500, 250, 1024, int(5e4), action_noise=NormalNoise(0.25))
 
         sum_sq_diff = 0
         sum_sq = 0
@@ -39,7 +39,7 @@ class AlgorithmTest(unittest.TestCase):
             nb_train_steps=1,
             batch_size=5,
             buffer_size=10,
-            noise=NormalNoise(0.25))
+            action_noise=NormalNoise(0.25))
 
         cached_tensors=[]
         for t in (alg.target_policy._actor.trainable_variables+alg.target_policy._critic.trainable_variables):

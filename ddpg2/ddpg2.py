@@ -2,6 +2,7 @@ import tensorflow as tf
 import numpy as np
 import time
 from common.utils import total_episode_reward_logger
+from deps.vec_env import VecEnv
 
 # tf.compat.v1.disable_eager_execution()
 
@@ -116,7 +117,7 @@ class Runner(object):
 
         st0 = env.reset()
 
-        self.st0 = st0.reshape((1, st0.shape[0]))
+        self.st0 = st0.reshape((1, st0.size))
         self.policy = policy
         self.buffer = buffer
         self.writer = writer
@@ -136,6 +137,10 @@ class Runner(object):
                 a = np.clip(a, -1, 1)
 
             a = self.scale_action(a)
+
+            # hack introducing awful dependency
+            if isinstance(self.env, VecEnv):
+                a=np.atleast_2d(a)
 
             st1, reward, done, _ = self.env.step(a)
 
@@ -170,7 +175,7 @@ class DDPG2(object):
                  critic_lr=1e-3,
                  gamma=0.99,
                  tau=0.001,
-                 noise=None,
+                 action_noise=None,
 
                  ):
         self.env = env
@@ -183,7 +188,7 @@ class DDPG2(object):
         self.critic_lr = critic_lr
         self.gamma = gamma
         self.tau = tau
-        self.noise = noise
+        self.action_noise = action_noise
 
         #     self.setup_model()
         #
@@ -201,7 +206,7 @@ class DDPG2(object):
 
         writer = tf.summary.create_file_writer("./tensorboard/DDPG_{}".format(time.time()))
 
-        self.runner = Runner(self.env, self.behavioral_policy, self.buffer, writer, self.noise)
+        self.runner = Runner(self.env, self.behavioral_policy, self.buffer, writer, self.action_noise)
 
         self.actor_optimizer = tf.keras.optimizers.Adam(learning_rate=self.actor_lr)
         self.critic_optimizer = tf.keras.optimizers.Adam(learning_rate=self.critic_lr)
