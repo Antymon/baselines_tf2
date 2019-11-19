@@ -4,7 +4,7 @@ from baselines import MLPPolicy, Runner, Buffer, NormalNoise
 import tensorflow as tf
 import numpy as np
 
-class RunnerTest(unittest.TestCase):
+class DDPGRunnerTest(unittest.TestCase):
     def test_buffer_filling(self):
         env = gym.make('MountainCarContinuous-v0')
         policy_kwargs = {'layers': [64, 64], 'act_fn': tf.keras.activations.tanh}

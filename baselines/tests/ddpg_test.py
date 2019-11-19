@@ -7,7 +7,7 @@ import tensorflow as tf
 
 import numpy as np
 
-class AlgorithmTest(unittest.TestCase):
+class DDPGTest(unittest.TestCase):
     def test_startup(self):
         env = gym.make('MountainCarContinuous-v0')
         policy_kwargs = {'layers': [4, 4], 'act_fn': tf.keras.activations.tanh}

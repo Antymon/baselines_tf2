@@ -76,8 +76,6 @@ class BufferTest(unittest.TestCase):
             for j in indexes:
                 counters[j]+=1
 
-        print(counters)
-
         counters_sum = counters.sum()
 
         self.assertEqual(counters_sum,sample_count*sample_size)
