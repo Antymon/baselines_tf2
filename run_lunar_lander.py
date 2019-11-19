@@ -1,7 +1,5 @@
 from baselines.ddpg import DDPG2
-from baselines.ddpg import NormalNoise
-
-
+from baselines import NormalNoise
 
 import gym
 import tensorflow as tf

@@ -1,7 +1,6 @@
 import unittest
 
-from baselines import DDPG2
-from baselines import NormalNoise
+from baselines import DDPG2, NormalNoise
 
 import gym
 import tensorflow as tf
