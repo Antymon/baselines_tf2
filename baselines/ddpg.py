@@ -1,8 +1,8 @@
 import tensorflow as tf
 import numpy as np
 import time
-from ddpg2.common.utils import total_episode_reward_logger
-from ddpg2.deps.vec_env import VecEnv
+from baselines.common.utils import total_episode_reward_logger
+from baselines.deps.vec_env import VecEnv
 
 # tf.compat.v1.disable_eager_execution()
 
@@ -75,8 +75,12 @@ class MLPPolicy(object):
             self.add_segment(actor,layers[i])
             self.add_segment(critic,layers[i])
 
-        actor.add(tf.keras.layers.Dense(action_space_size, activation=tf.keras.activations.tanh, dtype=tf.float32))
-        critic.add(tf.keras.layers.Dense(1, dtype=tf.float32))
+        actor.add(tf.keras.layers.Dense(action_space_size, activation=tf.keras.activations.tanh, dtype=tf.float32,
+                                                     kernel_initializer=tf.random_uniform_initializer(minval=-3e-3,
+                                                                                                      maxval=3e-3)))
+        critic.add(tf.keras.layers.Dense(1, dtype=tf.float32,
+                                                     kernel_initializer=tf.random_uniform_initializer(minval=-3e-3,
+                                                                                                      maxval=3e-3)))
 
         actor.build()
         critic.build()
@@ -181,6 +185,7 @@ class DDPG2(object):
                  gamma=0.99,
                  tau=0.001,
                  action_noise=None,
+                 layer_norm=False
 
                  ):
         self.env = env
@@ -204,8 +209,8 @@ class DDPG2(object):
         layers = self.policy_kwargs['layers']
         act_fn = self.policy_kwargs['act_fn']
 
-        self.target_policy = MLPPolicy(action_space_size, observation_space_size, layers, act_fn)
-        self.behavioral_policy = MLPPolicy(action_space_size, observation_space_size, layers, act_fn)
+        self.target_policy = MLPPolicy(action_space_size, observation_space_size, layers, act_fn, layer_norm)
+        self.behavioral_policy = MLPPolicy(action_space_size, observation_space_size, layers, act_fn, layer_norm)
 
         self.buffer = Buffer(self.buffer_size, action_space_size, observation_space_size)
 

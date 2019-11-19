@@ -1,6 +1,6 @@
 import unittest
 import gym
-from ddpg2 import MLPPolicy, Runner, Buffer, NormalNoise
+from baselines import MLPPolicy, Runner, Buffer, NormalNoise
 import tensorflow as tf
 import numpy as np
 

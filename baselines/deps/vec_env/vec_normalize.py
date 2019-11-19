@@ -3,8 +3,8 @@ import warnings
 
 import numpy as np
 
-from ddpg2.deps.vec_env.base_vec_env import VecEnvWrapper
-from ddpg2.deps.running_mean_std import RunningMeanStd
+from baselines.deps.vec_env.base_vec_env import VecEnvWrapper
+from baselines.deps.running_mean_std import RunningMeanStd
 
 
 class VecNormalize(VecEnvWrapper):

@@ -1,5 +1,5 @@
 import unittest
-from ddpg2 import NormalNoise
+from baselines import NormalNoise
 import numpy as np
 
 class NoiseTest(unittest.TestCase):
