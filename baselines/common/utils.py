@@ -44,3 +44,17 @@ def write_scalar(ticker, writer, value, step):
     with writer.as_default():
         # other model code would go here
         tf.summary.scalar(ticker, value[0], step=step[0])
+
+@tf.function
+def gaussian_likelihood(input_, mu_, log_std, eps=1e-6):
+    """
+    Helper to computer log likelihood of a gaussian.
+    Here we assume this is a Diagonal Gaussian.
+
+    :param input_: (tf.Tensor)
+    :param mu_: (tf.Tensor)
+    :param log_std: (tf.Tensor)
+    :return: (tf.Tensor)
+    """
+    pre_sum = -0.5 * (((input_ - mu_) / (tf.exp(log_std) + eps)) ** 2 + 2 * log_std + np.log(2 * np.pi))
+    return tf.reduce_sum(pre_sum, axis=1)

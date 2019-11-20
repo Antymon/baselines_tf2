@@ -46,16 +46,16 @@ class ActorCriticMLPs(ABC):
             self.add_segment(model,self.layers[i])
 
         if output_size is not None:
-            self.add_segment(model, output_size, add_act=False)
+            model.add(tf.keras.layers.Dense(output_size, dtype=tf.float32))
 
         return model
 
-    def add_segment(self, network, output_shape, add_act=True, **kwargs):
+    def add_segment(self, network, output_shape, **kwargs):
         network.add(tf.keras.layers.Dense(output_shape,dtype=tf.float32,**kwargs))
         if self.layer_norm:
             network.add(tf.keras.layers.LayerNormalization(center=True, scale=True))
-        if add_act:
-            network.add(tf.keras.layers.Activation(self.act_fn))
+
+        network.add(tf.keras.layers.Activation(self.act_fn))
 
     @abstractmethod
     @tf.function

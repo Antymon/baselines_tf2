@@ -13,8 +13,9 @@ class SACTest(unittest.TestCase):
         sac_net = SAC_MLP_Networks(action_space_size,observation_space_size,[4,4],tf.tanh)
 
         state=np.random.normal(size=(1,observation_space_size))
-        action=sac_net.get_a(state,training=False)
+        mean_action, action, _=sac_net.get_a(state,training=False)
 
+        self.assertEqual((1,action_space_size),mean_action.shape)
         self.assertEqual((1,action_space_size),action.shape)
 
 
