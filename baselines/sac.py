@@ -74,10 +74,6 @@ class SAC_MLP_Networks(ActorCriticMLPs):
 
         return squashed_mean_action, squashed_action, squashed_log_likelihood
 
-    @tf.function
-    def get_q_min(self, states, actions):
-        return tf.minimum(self.get_q(states, actions=actions, index=0), self.get_q(states, actions=actions, index=1))
-
 
 class Runner(object):
     def __init__(self, env, policy, buffer, writer=None, noise=None):
@@ -143,7 +139,6 @@ class SAC(object):
                  tau=0.001,
                  action_noise=None,
                  layer_norm=False
-
                  ):
         self.env = env
         self.policy_kwargs = policy_kwargs
@@ -178,6 +173,10 @@ class SAC(object):
         # tf.config.experimental_run_functions_eagerly(True)
         self.target_policy.update_trainable_variables(1., self.behavioral_policy)
         # tf.config.experimental_run_functions_eagerly(False)
+
+        self.log_ent_coeff = tf.Variable(0., dtype=tf.float32, name='log_ent_coeff')
+        self.ent_coeff = tf.exp(self.log_ent_coeff)
+        self.target_entropy = -np.prod(self.env.action_space.shape).astype(np.float32)
 
     def learn(self, total_timesteps):
         current_rollout_steps = 0
@@ -235,8 +234,9 @@ class SAC(object):
         return v_loss
 
     @tf.function
-    def get_adaptive_entropy_loss(self):
-        raise NotImplementedError()
+    def get_adaptive_entropy_loss(self,log_pi_a):
+        # justified in https://arxiv.org/pdf/1812.05905.pdf in a rather involved way
+        return -tf.reduce_mean(self.log_ent_coeff*tf.stop_gradient(log_pi_a+self.target_entropy))
 
     @tf.function
     def train_step(self, states_t0, actions, rewards, states_t1, dones):
@@ -263,7 +263,14 @@ class SAC(object):
 
         critic_grad = critic_tape.gradient(critic_loss, critic_variables)
 
+        with tf.GradientTape() as entropy_tape:
+            entropy_tape.watch(self.log_ent_coeff)
+            entropy_loss = self.get_adaptive_entropy_loss(log_pi_a)
+
+        entropy_grad = entropy_tape.gradient(entropy_loss,self.log_ent_coeff)
+
         self.actor_optimizer.apply_gradients(zip(actor_grad, actor_variables))
         self.critic_optimizer.apply_gradients(zip(critic_grad, critic_variables))
+        self.entropy_optimizer.apply_gradients([(entropy_grad,self.log_ent_coeff)])
 
         self.target_policy.update_trainable_variables(self.tau, self.behavioral_policy)
