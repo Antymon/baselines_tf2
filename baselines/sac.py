@@ -1,7 +1,12 @@
 import tensorflow as tf
+import numpy as np
+
+from time import time
 
 from baselines.common.actor_critic_mlps import ActorCriticMLPs
-from baselines.common.utils import gaussian_likelihood
+from baselines.common.utils import gaussian_likelihood, total_episode_reward_logger
+
+from baselines.common import Buffer
 
 EPS = 1e-6  # Avoid NaN (prevents division by zero or log of zero)
 # CAP the standard deviation of the actor
@@ -11,8 +16,13 @@ LOG_STD_MIN = -20
 
 class SAC_MLP_Networks(ActorCriticMLPs):
 
-    def __init__(self, action_space_size, obs_space_size, layers, act_fn, layer_norm=False):
-        super().__init__(action_space_size, obs_space_size, layers, act_fn, layer_norm, qs_num=2, vs_num=1)
+    def __init__(self, action_space_size, obs_space_size, layers, act_fn, layer_norm=False, target_network=False):
+        if target_network:
+            super().__init__(action_space_size, obs_space_size, layers, act_fn, layer_norm, create_actor=False,
+                             qs_num=0, vs_num=1)
+        else:
+            super().__init__(action_space_size, obs_space_size, layers, act_fn, layer_norm, create_actor=True, qs_num=2,
+                             vs_num=1)
 
     def create_actor_output(self, a_front):
         self._mu_layer = tf.keras.layers.Dense(
@@ -29,6 +39,15 @@ class SAC_MLP_Networks(ActorCriticMLPs):
 
         a_front.build()
         self.a_front = a_front
+
+    def get_a_trainable_variables(self):
+        return self.a_front.trainable_variables
+
+    def get_q_trainable_variables(self, index):
+        return self._qs[index].trainable_variables
+
+    def get_v_trainable_variables(self):
+        return self.get_interpolation_variables()
 
     def get_interpolation_variables(self):
         return self._vs[0].trainable_variables
@@ -51,6 +70,200 @@ class SAC_MLP_Networks(ActorCriticMLPs):
         squashed_action = tf.tanh(action)
         # based on change of variables under squashing f(x) = tanh(x) which affects distribution
         # described under appendix C of https://arxiv.org/pdf/1812.05905.pdf
-        squashed_log_likelihood = log_likelihood - tf.reduce_sum(tf.math.log(1. - squashed_action**2 + EPS), axis=1)
+        squashed_log_likelihood = log_likelihood - tf.reduce_sum(tf.math.log(1. - squashed_action ** 2 + EPS), axis=1)
 
         return squashed_mean_action, squashed_action, squashed_log_likelihood
+
+    @tf.function
+    def get_q_min(self, states, actions):
+        return tf.minimum(self.get_q(states, actions=actions, index=0), self.get_q(states, actions=actions, index=1))
+
+
+class Runner(object):
+    def __init__(self, env, policy, buffer, writer=None, noise=None):
+        self.env = env
+
+        st0 = env.reset()
+
+        self.st0 = st0.reshape((1, st0.size))
+        self.policy = policy
+        self.buffer = buffer
+        self.writer = writer
+        self.episode_reward = np.zeros((1,))
+        self.num_timesteps = 0
+        self.noise = noise
+
+    def run(self, rollout_steps):
+        for i in range(rollout_steps):
+
+            # output SAC
+            _, a, _ = self.policy.get_a(self.st0, training=False)
+
+            a = a.numpy().flatten()
+
+            # add action noise
+            if self.noise is not None:
+                a = self.noise.apply(a)
+                a = np.clip(a, -1, 1)
+
+            a = self.scale_action(a)
+            a = np.atleast_2d(a)
+
+            st1, reward, done, _ = self.env.step(a)
+
+            if self.writer is not None:
+                self.write_to_tensorboard(reward, done)
+
+            self.buffer.add(self.st0, a, reward, st1, done)
+            self.num_timesteps += 1
+
+            self.st0 = st1.reshape(self.st0.shape)
+
+    def scale_action(self, a):
+        # normalize action from tanh codomain and denormalize to action space
+        return (a + 1.) / 2 * (self.env.action_space.high - self.env.action_space.low) + self.env.action_space.low
+
+    def write_to_tensorboard(self, reward, done):
+        ep_rew = np.array([reward]).reshape((1, -1))
+        ep_done = np.array([done]).reshape((1, -1))
+        self.episode_reward = total_episode_reward_logger(self.episode_reward, ep_rew, ep_done,
+                                                          self.writer, self.num_timesteps)
+
+
+class SAC(object):
+    def __init__(self,
+                 env,
+                 policy_kwargs,
+                 nb_rollout_steps,
+                 nb_train_steps,
+                 batch_size,
+                 buffer_size,
+                 lr=1e-3,
+                 gamma=0.99,
+                 tau=0.001,
+                 action_noise=None,
+                 layer_norm=False
+
+                 ):
+        self.env = env
+        self.policy_kwargs = policy_kwargs
+        self.nb_rollout_steps = nb_rollout_steps
+        self.nb_train_steps = nb_train_steps
+        self.batch_size = batch_size
+        self.buffer_size = buffer_size
+        self.lr = lr
+        self.gamma = gamma
+        self.tau = tau
+        self.action_noise = action_noise
+
+        action_space_size = self.env.action_space.shape[0]
+        observation_space_size = self.env.observation_space.shape[0]
+        layers = self.policy_kwargs['layers']
+        act_fn = self.policy_kwargs['act_fn']
+
+        self.target_policy = SAC_MLP_Networks(action_space_size, observation_space_size, layers, act_fn, layer_norm,
+                                              target_network=True)
+        self.behavioral_policy = SAC_MLP_Networks(action_space_size, observation_space_size, layers, act_fn, layer_norm)
+
+        self.buffer = Buffer(self.buffer_size, action_space_size, observation_space_size)
+
+        writer = tf.summary.create_file_writer("./tensorboard/SAC_{}".format(time.time()))
+
+        self.runner = Runner(self.env, self.behavioral_policy, self.buffer, writer, self.action_noise)
+
+        self.actor_optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
+        self.critic_optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
+        self.entropy_optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
+
+        # tf.config.experimental_run_functions_eagerly(True)
+        self.target_policy.update_trainable_variables(1., self.behavioral_policy)
+        # tf.config.experimental_run_functions_eagerly(False)
+
+    def learn(self, total_timesteps):
+        current_rollout_steps = 0
+
+        while current_rollout_steps < total_timesteps:
+
+            self.runner.run(self.nb_rollout_steps)
+            current_rollout_steps += self.nb_rollout_steps
+
+            if self.buffer.can_sample(self.batch_size):
+                for i in range(self.nb_train_steps):
+                    data = self.buffer.sample(self.batch_size)
+                    # data = tuple(tf.convert_to_tensor(d) for d in data)
+                    self.train_step(*data)
+
+    @tf.function
+    def get_q_loss(self, states_t0, actions, rewards, states_t1, dones):
+
+        # q losses
+
+        not_dones = tf.ones_like(dones) - dones
+        q_target = tf.stop_gradient(rewards + self.gamma * not_dones * self.target_policy.get_v(states_t1))
+
+        q1 = self.behavioral_policy.get_q(states_t0, actions=actions, index=0)
+        q2 = self.behavioral_policy.get_q(states_t0, actions=actions, index=1)
+
+        bellman_error1 = q1 - q_target
+        bellman_error2 = q2 - q_target
+
+        q1_loss = tf.reduce_mean(tf.square(bellman_error1))
+        q2_loss = tf.reduce_mean(tf.square(bellman_error2))
+
+        return q1_loss + q2_loss
+
+    @tf.function
+    def get_a_loss(self, q1_pi, log_pi_a):
+        # actor loss: actor is meant to maximize v_value = E[q_any - ent_coeff*log_pi]
+        actor_loss = tf.negative(tf.reduce_mean(q1_pi - self.ent_coeff * log_pi_a))
+
+        return actor_loss
+
+    @tf.function
+    def get_v_loss(self, states_t0, q1_pi, on_a, log_pi_a):
+
+        q2_pi = self.behavioral_policy.get_q(states_t0, actions=on_a, index=1)
+
+        q_min = tf.minimum(q1_pi, q2_pi)
+
+        v_target = tf.stop_gradient(q_min - self.ent_coeff * log_pi_a)
+
+        v = self.behavioral_policy.get_v(states_t0)
+
+        v_loss = tf.reduce_mean(tf.square(v - v_target))
+
+        return v_loss
+
+    @tf.function
+    def get_adaptive_entropy_loss(self):
+        raise NotImplementedError()
+
+    @tf.function
+    def train_step(self, states_t0, actions, rewards, states_t1, dones):
+
+        actor_variables = self.behavioral_policy.get_a_trainable_variables()
+
+        critic_variables = \
+            self.behavioral_policy.get_q_trainable_variables(0) + \
+            self.behavioral_policy.get_q_trainable_variables(1) + \
+            self.behavioral_policy.get_v_trainable_variables()
+
+        with tf.GradientTape() as actor_tape:
+            actor_tape.watch(actor_variables)
+            _, on_a, log_pi_a = self.behavioral_policy.get_a(states_t0)
+            q1_pi = self.behavioral_policy.get_q(states_t0, actions=on_a, index=0)
+            actor_loss = self.get_actor_loss(q1_pi, log_pi_a)
+
+        actor_grad = actor_tape.gradient(actor_loss, actor_variables)
+
+        with tf.GradientTape() as critic_tape:
+            critic_tape.watch(critic_variables)
+            critic_loss = self.get_q_loss(states_t0, actions, rewards, states_t1, dones)
+            critic_loss += self.get_v_loss(states_t0, q1_pi, on_a, log_pi_a)
+
+        critic_grad = critic_tape.gradient(critic_loss, critic_variables)
+
+        self.actor_optimizer.apply_gradients(zip(actor_grad, actor_variables))
+        self.critic_optimizer.apply_gradients(zip(critic_grad, critic_variables))
+
+        self.target_policy.update_trainable_variables(self.tau, self.behavioral_policy)

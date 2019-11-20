@@ -8,21 +8,22 @@ class ActorCriticMLPs(ABC):
                  layers,
                  act_fn,
                  layer_norm=False,
+                 create_actor = True,
                  qs_num=1,
                  vs_num=0):
+        self.create_actor = create_actor
         self.action_space_size = action_space_size
         self.obs_space_size = obs_space_size
         self.layers = layers
         self.act_fn = act_fn
         self.layer_norm = layer_norm
 
-        self._a = None
         self._qs = []
         self._vs = []
 
-        a_front = self.create_mlp(input_shape=(obs_space_size,))
-
-        self.create_actor_output(a_front)
+        if create_actor:
+            a_front = self.create_mlp(input_shape=(obs_space_size,))
+            self.create_actor_output(a_front)
 
         for _ in range(qs_num):
             self._qs.append(self.create_mlp(input_shape=(obs_space_size + action_space_size,),output_size=1))
@@ -66,6 +67,8 @@ class ActorCriticMLPs(ABC):
     def get_q(self, states, actions=None, index=0):
         if actions is None:
             actions = self.get_a(states, training=True)
+            if isinstance(actions, tuple):
+                actions=actions[1]
 
         q_input = tf.concat([states, actions], -1)
         q_vals = self._qs[index](q_input, training=True)
