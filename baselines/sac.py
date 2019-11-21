@@ -47,10 +47,10 @@ class SAC_MLP_Networks(ActorCriticMLPs):
         return self._qs[index].trainable_variables
 
     def get_v_trainable_variables(self):
-        return self.get_interpolation_variables()
+        return self._vs[0].trainable_variables
 
     def get_interpolation_variables(self):
-        return self._vs[0].trainable_variables
+        return self.get_v_trainable_variables()
 
     @tf.function
     def get_a(self, states, training):
@@ -149,7 +149,7 @@ class SAC(object):
                  nb_train_steps=1,
                  batch_size=64,
                  buffer_size=50000,
-                 lr=3e-4,
+                 learning_rate=3e-4,
                  gamma=0.99,
                  tau=0.005,
                  action_noise=None,
@@ -162,7 +162,7 @@ class SAC(object):
         self.nb_train_steps = nb_train_steps
         self.batch_size = batch_size
         self.buffer_size = buffer_size
-        self.lr = lr
+        self.learning_rate = learning_rate
         self.gamma = gamma
         self.tau = tau
         self.action_noise = action_noise
@@ -183,9 +183,9 @@ class SAC(object):
 
         self.runner = Runner(self.env, self.behavioral_policy, self.buffer, writer, self.action_noise, learning_starts=learning_starts)
 
-        self.actor_optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
-        self.critic_optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
-        self.entropy_optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
+        self.actor_optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate)
+        self.critic_optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate)
+        self.entropy_optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate)
 
         # tf.config.experimental_run_functions_eagerly(True)
         self.target_policy.interpolate_variables(1., self.behavioral_policy)
