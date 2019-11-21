@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 
-from time import time
+import time
 
 from baselines.common.actor_critic_mlps import ActorCriticMLPs
 from baselines.common.utils import gaussian_likelihood, total_episode_reward_logger
@@ -76,7 +76,7 @@ class SAC_MLP_Networks(ActorCriticMLPs):
 
 
 class Runner(object):
-    def __init__(self, env, policy, buffer, writer=None, noise=None):
+    def __init__(self, env, policy, buffer, writer=None, noise=None, learning_starts=100):
         self.env = env
 
         st0 = env.reset()
@@ -88,21 +88,25 @@ class Runner(object):
         self.episode_reward = np.zeros((1,))
         self.num_timesteps = 0
         self.noise = noise
+        self.learning_starts = learning_starts
 
     def run(self, rollout_steps):
         for i in range(rollout_steps):
 
-            # output SAC
-            _, a, _ = self.policy.get_a(self.st0, training=False)
+            if self.num_timesteps < self.learning_starts:
+                a = self.env.action_space.sample()
+            else:
+                _, a, _ = self.policy.get_a(self.st0, training=False)
 
-            a = a.numpy().flatten()
+                a = a.numpy().flatten()
 
-            # add action noise
-            if self.noise is not None:
-                a = self.noise.apply(a)
-                a = np.clip(a, -1, 1)
+                # add action noise
+                if self.noise is not None:
+                    a = self.noise.apply(a)
+                    a = np.clip(a, -1, 1)
 
-            a = self.scale_action(a)
+                a = self.scale_action(a)
+
             a = np.atleast_2d(a)
 
             st1, reward, done, _ = self.env.step(a)
@@ -130,15 +134,16 @@ class SAC(object):
     def __init__(self,
                  env,
                  policy_kwargs,
-                 nb_rollout_steps,
-                 nb_train_steps,
-                 batch_size,
-                 buffer_size,
-                 lr=1e-3,
+                 nb_rollout_steps=1,
+                 nb_train_steps=1,
+                 batch_size=64,
+                 buffer_size=50000,
+                 lr=3e-4,
                  gamma=0.99,
                  tau=0.001,
                  action_noise=None,
-                 layer_norm=False
+                 layer_norm=False,
+                 learning_starts=100
                  ):
         self.env = env
         self.policy_kwargs = policy_kwargs
@@ -150,6 +155,7 @@ class SAC(object):
         self.gamma = gamma
         self.tau = tau
         self.action_noise = action_noise
+        self.learning_starts = learning_starts
 
         action_space_size = self.env.action_space.shape[0]
         observation_space_size = self.env.observation_space.shape[0]
@@ -164,14 +170,14 @@ class SAC(object):
 
         writer = tf.summary.create_file_writer("./tensorboard/SAC_{}".format(time.time()))
 
-        self.runner = Runner(self.env, self.behavioral_policy, self.buffer, writer, self.action_noise)
+        self.runner = Runner(self.env, self.behavioral_policy, self.buffer, writer, self.action_noise, learning_starts=learning_starts)
 
         self.actor_optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.critic_optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.entropy_optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
 
         # tf.config.experimental_run_functions_eagerly(True)
-        self.target_policy.update_trainable_variables(1., self.behavioral_policy)
+        self.target_policy.interpolate_variables(1., self.behavioral_policy)
         # tf.config.experimental_run_functions_eagerly(False)
 
         self.log_ent_coeff = tf.Variable(0., dtype=tf.float32, name='log_ent_coeff')
@@ -186,7 +192,7 @@ class SAC(object):
             self.runner.run(self.nb_rollout_steps)
             current_rollout_steps += self.nb_rollout_steps
 
-            if self.buffer.can_sample(self.batch_size):
+            if self.buffer.can_sample(self.batch_size) and self.learning_starts < current_rollout_steps:
                 for i in range(self.nb_train_steps):
                     data = self.buffer.sample(self.batch_size)
                     # data = tuple(tf.convert_to_tensor(d) for d in data)
