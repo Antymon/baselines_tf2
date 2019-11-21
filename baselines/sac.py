@@ -140,7 +140,7 @@ class SAC(object):
                  buffer_size=50000,
                  lr=3e-4,
                  gamma=0.99,
-                 tau=0.001,
+                 tau=0.005,
                  action_noise=None,
                  layer_norm=False,
                  learning_starts=100
@@ -256,9 +256,9 @@ class SAC(object):
 
         with tf.GradientTape() as actor_tape:
             actor_tape.watch(actor_variables)
-            _, on_a, log_pi_a = self.behavioral_policy.get_a(states_t0)
+            _, on_a, log_pi_a = self.behavioral_policy.get_a(states_t0, training=False)
             q1_pi = self.behavioral_policy.get_q(states_t0, actions=on_a, index=0)
-            actor_loss = self.get_actor_loss(q1_pi, log_pi_a)
+            actor_loss = self.get_a_loss(q1_pi, log_pi_a)
 
         actor_grad = actor_tape.gradient(actor_loss, actor_variables)
 
@@ -279,4 +279,4 @@ class SAC(object):
         self.critic_optimizer.apply_gradients(zip(critic_grad, critic_variables))
         self.entropy_optimizer.apply_gradients([(entropy_grad,self.log_ent_coeff)])
 
-        self.target_policy.update_trainable_variables(self.tau, self.behavioral_policy)
+        self.target_policy.interpolate_variables(self.tau, self.behavioral_policy)
