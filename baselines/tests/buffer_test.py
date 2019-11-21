@@ -93,6 +93,49 @@ class BufferTest(unittest.TestCase):
     def assert_np_array_equal(self,a1,a2):
         self.assertTrue(np.square(a1-a2).sum() < 1e-3)
 
+    def test_buffer_overriding(self):
+        size = 5
+        action_space_size = 3
+        observation_space_size = 1
+
+        b = Buffer(size, action_space_size, observation_space_size)
+
+        for i in range(size):
+            b.add(np.ones(observation_space_size), np.ones(action_space_size), 1, np.ones(observation_space_size), False)
+
+        _, _, r, _, _ = b.sample(size)
+
+        self.assertEqual(np.sum(r),size)
+
+        for i in range(size):
+            b.add(np.ones(observation_space_size)*2, np.ones(action_space_size)*2, 2, np.ones(observation_space_size)*2, False)
+
+        _, _, r, _, _ = b.sample(size)
+
+        self.assertEqual(np.sum(r),size*2)
+
+    def test_buffer_done_conversion(self):
+        size = 5
+        action_space_size = 3
+        observation_space_size = 1
+
+        b = Buffer(size, action_space_size, observation_space_size)
+
+        for i in range(size):
+            b.add(np.ones(observation_space_size), np.ones(action_space_size), 1, np.ones(observation_space_size), False)
+
+        _, _, _, _, d = b.sample(size)
+
+        self.assertEqual(np.sum(d),0)
+
+        for i in range(size):
+            b.add(np.ones(observation_space_size), np.ones(action_space_size), 1, np.ones(observation_space_size), True)
+
+        _, _, _, _, d = b.sample(size)
+
+        self.assertEqual(np.sum(d),size)
+
+
 
 if __name__ == '__main__':
     unittest.main()
