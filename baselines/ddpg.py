@@ -100,13 +100,11 @@ class Runner(object):
                 a = self.noise.apply(a)
                 a = np.clip(a, -1, 1)
 
-            a = self.scale_action(a)
-
             # hack introducing awful dependency
             if isinstance(self.env, VecEnv):
                 a=np.atleast_2d(a)
 
-            st1, reward, done, _ = self.env.step(a)
+            st1, reward, done, _ = self.env.step(self.scale_action(a))
 
             if self.writer is not None:
                 self.write_to_tensorboard(reward, done)

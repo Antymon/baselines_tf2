@@ -94,7 +94,8 @@ class Runner(object):
         for i in range(rollout_steps):
 
             if self.num_timesteps < self.learning_starts:
-                a = self.env.action_space.sample()
+                a_scaled = self.env.action_space.sample()
+                a = self.undo_scale_action(a_scaled)
             else:
                 _, a, _ = self.policy.get_a(self.st0, training=False)
 
@@ -105,11 +106,18 @@ class Runner(object):
                     a = self.noise.apply(a)
                     a = np.clip(a, -1, 1)
 
-                a = self.scale_action(a)
+                a_scaled = self.scale_action(a)
+
+            # true only for action spaces originally in tanh codomain
+            # if np.sum(np.abs(a_scaled-a)) > 1e-3:
+            #     print(a_scaled)
+            #     print(a)
+            #     assert False
 
             a = np.atleast_2d(a)
+            a_scaled = np.atleast_2d(a_scaled)
 
-            st1, reward, done, _ = self.env.step(a)
+            st1, reward, done, _ = self.env.step(a_scaled)
 
             if self.writer is not None:
                 self.write_to_tensorboard(reward, done)
@@ -122,6 +130,9 @@ class Runner(object):
     def scale_action(self, a):
         # normalize action from tanh codomain and denormalize to action space
         return (a + 1.) / 2 * (self.env.action_space.high - self.env.action_space.low) + self.env.action_space.low
+
+    def undo_scale_action(self, a):
+        return (a - self.env.action_space.low)/(self.env.action_space.high - self.env.action_space.low)*2 - 1.
 
     def write_to_tensorboard(self, reward, done):
         ep_rew = np.array([reward]).reshape((1, -1))
