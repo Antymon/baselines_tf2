@@ -10,7 +10,7 @@ import numpy as np
 class DDPGTest(unittest.TestCase):
     def test_startup(self):
         env = gym.make('MountainCarContinuous-v0')
-        policy_kwargs = {'layers': [4, 4], 'act_fn': tf.keras.activations.tanh}
+        policy_kwargs = {'layers': [4, 4], 'act_fun': tf.keras.activations.tanh}
 
         alg = DDPG2(env, policy_kwargs, 500, 250, 1024, int(5e4), action_noise=NormalNoise(0.25))
 
@@ -29,7 +29,7 @@ class DDPGTest(unittest.TestCase):
 
     def test_learn(self):
         env = gym.make('MountainCarContinuous-v0')
-        policy_kwargs = {'layers': [4, 4], 'act_fn': tf.keras.activations.tanh}
+        policy_kwargs = {'layers': [4, 4], 'act_fun': tf.keras.activations.tanh}
 
         alg = DDPG2(
             env,

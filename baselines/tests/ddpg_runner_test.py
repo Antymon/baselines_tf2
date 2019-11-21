@@ -7,7 +7,7 @@ import numpy as np
 class DDPGRunnerTest(unittest.TestCase):
     def test_buffer_filling(self):
         env = gym.make('MountainCarContinuous-v0')
-        policy_kwargs = {'layers': [64, 64], 'act_fn': tf.keras.activations.tanh}
+        policy_kwargs = {'layers': [64, 64], 'act_fun': tf.keras.activations.tanh}
 
         action_space_size = env.action_space.shape[0]
         observation_space_size = env.observation_space.shape[0]

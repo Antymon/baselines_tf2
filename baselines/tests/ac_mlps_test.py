@@ -60,7 +60,7 @@ class AC_MLPs_Test(unittest.TestCase):
         num_qs=2
         num_vs=1
 
-        nets = DummyNetworks(2, 3, [4, 4], tf.tanh, False, num_qs, num_vs)
+        nets = DummyNetworks(2, 3, [4, 4], tf.tanh, False,False, num_qs, num_vs)
 
         self.assertEqual(len(nets._qs),num_qs)
         self.assertEqual(len(nets._vs),num_vs)

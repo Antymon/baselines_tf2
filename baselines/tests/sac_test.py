@@ -24,7 +24,7 @@ class SACTest(unittest.TestCase):
 
     def test_startup(self):
         env = gym.make('MountainCarContinuous-v0')
-        policy_kwargs = {'layers': [4, 4], 'act_fn': tf.keras.activations.tanh}
+        policy_kwargs = {'layers': [4, 4], 'act_fun': tf.keras.activations.tanh}
 
         alg = SAC(env, policy_kwargs, action_noise=NormalNoise(0.25))
 
@@ -44,7 +44,7 @@ class SACTest(unittest.TestCase):
     def test_learn(self):
         env = gym.make('MountainCarContinuous-v0')
         env = DummyVecEnv([lambda: env])  # The algorithms require a vectorized environment to run
-        policy_kwargs = {'layers': [4, 4], 'act_fn': tf.keras.activations.tanh}
+        policy_kwargs = {'layers': [4, 4], 'act_fun': tf.keras.activations.tanh}
 
         alg = SAC(env, policy_kwargs, action_noise=NormalNoise(0.25),learning_starts=0)
 

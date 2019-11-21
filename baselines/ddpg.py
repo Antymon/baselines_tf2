@@ -13,11 +13,11 @@ class MLPPolicy(object):
                  action_space_size,
                  obs_space_size,
                  layers,
-                 act_fn,
+                 act_fun,
                  layer_norm=False):
         self._critic = None
 
-        self.act_fn = act_fn
+        self.act_fun = act_fun
         self.layer_norm = layer_norm
 
         actor = tf.keras.Sequential()
@@ -44,7 +44,7 @@ class MLPPolicy(object):
         self._critic = critic
 
     def add_segment(self, network, output_shape, **kwargs):
-        network.add(tf.keras.layers.Dense(output_shape,dtype=tf.float32,activation=self.act_fn,**kwargs))
+        network.add(tf.keras.layers.Dense(output_shape,dtype=tf.float32,activation=self.act_fun,**kwargs))
         if self.layer_norm:
             network.add(tf.keras.layers.LayerNormalization(center=True, scale=True))
 
@@ -160,10 +160,10 @@ class DDPG2(object):
         action_space_size = self.env.action_space.shape[0]
         observation_space_size = self.env.observation_space.shape[0]
         layers = self.policy_kwargs['layers']
-        act_fn = self.policy_kwargs['act_fn']
+        act_fun = self.policy_kwargs['act_fun']
 
-        self.target_policy = MLPPolicy(action_space_size, observation_space_size, layers, act_fn, layer_norm)
-        self.behavioral_policy = MLPPolicy(action_space_size, observation_space_size, layers, act_fn, layer_norm)
+        self.target_policy = MLPPolicy(action_space_size, observation_space_size, layers, act_fun, layer_norm)
+        self.behavioral_policy = MLPPolicy(action_space_size, observation_space_size, layers, act_fun, layer_norm)
 
         self.buffer = Buffer(self.buffer_size, action_space_size, observation_space_size)
 

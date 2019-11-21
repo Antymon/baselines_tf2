@@ -16,12 +16,12 @@ LOG_STD_MIN = -20
 
 class SAC_MLP_Networks(ActorCriticMLPs):
 
-    def __init__(self, action_space_size, obs_space_size, layers, act_fn, layer_norm=False, target_network=False):
+    def __init__(self, action_space_size, obs_space_size, layers, act_fun, layer_norm=False, target_network=False):
         if target_network:
-            super().__init__(action_space_size, obs_space_size, layers, act_fn, layer_norm, create_actor=False,
+            super().__init__(action_space_size, obs_space_size, layers, act_fun, layer_norm, create_actor=False,
                              qs_num=0, vs_num=1)
         else:
-            super().__init__(action_space_size, obs_space_size, layers, act_fn, layer_norm, create_actor=True, qs_num=2,
+            super().__init__(action_space_size, obs_space_size, layers, act_fun, layer_norm, create_actor=True, qs_num=2,
                              vs_num=1)
 
     def create_actor_output(self, a_front):
@@ -171,11 +171,11 @@ class SAC(object):
         action_space_size = self.env.action_space.shape[0]
         observation_space_size = self.env.observation_space.shape[0]
         layers = self.policy_kwargs['layers']
-        act_fn = self.policy_kwargs['act_fn']
+        act_fun = self.policy_kwargs['act_fun']
 
-        self.target_policy = SAC_MLP_Networks(action_space_size, observation_space_size, layers, act_fn, layer_norm,
+        self.target_policy = SAC_MLP_Networks(action_space_size, observation_space_size, layers, act_fun, layer_norm,
                                               target_network=True)
-        self.behavioral_policy = SAC_MLP_Networks(action_space_size, observation_space_size, layers, act_fn, layer_norm)
+        self.behavioral_policy = SAC_MLP_Networks(action_space_size, observation_space_size, layers, act_fun, layer_norm)
 
         self.buffer = Buffer(self.buffer_size, action_space_size, observation_space_size)
 

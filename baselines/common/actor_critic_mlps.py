@@ -6,7 +6,7 @@ class ActorCriticMLPs(ABC):
                  action_space_size,
                  obs_space_size,
                  layers,
-                 act_fn,
+                 act_fun,
                  layer_norm=False,
                  create_actor = True,
                  qs_num=1,
@@ -15,7 +15,7 @@ class ActorCriticMLPs(ABC):
         self.action_space_size = action_space_size
         self.obs_space_size = obs_space_size
         self.layers = layers
-        self.act_fn = act_fn
+        self.act_fun = act_fun
         self.layer_norm = layer_norm
 
         self._qs = []
@@ -56,7 +56,7 @@ class ActorCriticMLPs(ABC):
         if self.layer_norm:
             network.add(tf.keras.layers.LayerNormalization(center=True, scale=True))
 
-        network.add(tf.keras.layers.Activation(self.act_fn))
+        network.add(tf.keras.layers.Activation(self.act_fun))
 
     @abstractmethod
     @tf.function
