@@ -223,8 +223,8 @@ class SAC(object):
         bellman_error1 = q1 - q_target
         bellman_error2 = q2 - q_target
 
-        q1_loss = tf.reduce_mean(tf.square(bellman_error1))
-        q2_loss = tf.reduce_mean(tf.square(bellman_error2))
+        q1_loss = 0.5 * tf.reduce_mean(tf.square(bellman_error1))
+        q2_loss = 0.5 * tf.reduce_mean(tf.square(bellman_error2))
 
         return q1_loss + q2_loss
 
@@ -246,7 +246,7 @@ class SAC(object):
 
         v = self.behavioral_policy.get_v(states_t0)
 
-        v_loss = tf.reduce_mean(tf.square(v - v_target))
+        v_loss = 0.5 * tf.reduce_mean(tf.square(v - v_target))
 
         return v_loss
 
@@ -272,13 +272,15 @@ class SAC(object):
             actor_loss = self.get_a_loss(q1_pi, log_pi_a)
 
         actor_grad = actor_tape.gradient(actor_loss, actor_variables)
+        self.actor_optimizer.apply_gradients(zip(actor_grad, actor_variables))
 
         with tf.GradientTape() as critic_tape:
             critic_tape.watch(critic_variables)
-            critic_loss = self.get_q_loss(states_t0, actions, rewards, states_t1, dones)
-            critic_loss += self.get_v_loss(states_t0, q1_pi, on_a, log_pi_a)
+            critic_loss = self.get_q_loss(states_t0, actions, rewards, states_t1, dones) + \
+            self.get_v_loss(states_t0, q1_pi, on_a, log_pi_a)
 
         critic_grad = critic_tape.gradient(critic_loss, critic_variables)
+        self.critic_optimizer.apply_gradients(zip(critic_grad, critic_variables))
 
         with tf.GradientTape() as entropy_tape:
             entropy_tape.watch(self.log_ent_coeff)
@@ -286,8 +288,6 @@ class SAC(object):
 
         entropy_grad = entropy_tape.gradient(entropy_loss,self.log_ent_coeff)
 
-        self.actor_optimizer.apply_gradients(zip(actor_grad, actor_variables))
-        self.critic_optimizer.apply_gradients(zip(critic_grad, critic_variables))
         self.entropy_optimizer.apply_gradients([(entropy_grad,self.log_ent_coeff)])
 
         self.target_policy.interpolate_variables(self.tau, self.behavioral_policy)

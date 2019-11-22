@@ -24,7 +24,7 @@ if __name__ == '__main__':
     )
 
     policy_kwargs = dict()
-    policy_kwargs['act_fn'] = tf.nn.relu
+    policy_kwargs['act_fun'] = tf.nn.relu
     policy_kwargs['layers'] = [64,64]
 
     kwargs['policy_kwargs'] = policy_kwargs
