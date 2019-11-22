@@ -33,17 +33,17 @@ def total_episode_reward_logger(rew_acc, rewards, masks, writer, steps):
 # if plain scalars are sent to a tf.function new graph will be created each time vals are changed
 # so they are packed here... to get unpacked later
 # numpy arrays are accepted as proxy for tensors, i.e. their values do not create new cache entries
-def write_reward(writer, reward, step):
+def write_reward(writer, reward, step, tag="environment_info/episode_reward"):
     np_reward = np.atleast_1d(reward)
     np_step = np.atleast_1d(step)
-    write_scalar("environment_info/episode_reward",writer, np_reward, np_step)
+    write_scalar(tag,writer, np_reward, np_step)
     writer.flush()
 
 @tf.function
-def write_scalar(ticker, writer, value, step):
+def write_scalar(tag, writer, value, step):
     with writer.as_default():
         # other model code would go here
-        tf.summary.scalar(ticker, value[0], step=step[0])
+        tf.summary.scalar(tag, value[0], step=step[0])
 
 @tf.function
 def gaussian_likelihood(input_, mu_, log_std, eps=1e-6):

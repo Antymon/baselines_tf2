@@ -4,7 +4,7 @@ import numpy as np
 import time
 
 from baselines.common.actor_critic_mlps import ActorCriticMLPs
-from baselines.common.utils import gaussian_likelihood, total_episode_reward_logger
+from baselines.common.utils import gaussian_likelihood, total_episode_reward_logger, write_scalar
 
 from baselines.common import Buffer
 
@@ -70,6 +70,7 @@ class SAC_MLP_Networks(ActorCriticMLPs):
         squashed_action = tf.tanh(action)
         # based on change of variables under squashing f(x) = tanh(x) which affects distribution
         # described under appendix C of https://arxiv.org/pdf/1812.05905.pdf
+
         squashed_log_likelihood = log_likelihood - tf.reduce_sum(tf.math.log(1. - squashed_action ** 2 + EPS), axis=1)
 
         return squashed_mean_action, squashed_action, squashed_log_likelihood
@@ -179,9 +180,9 @@ class SAC(object):
 
         self.buffer = Buffer(self.buffer_size, action_space_size, observation_space_size)
 
-        writer = tf.summary.create_file_writer("./tensorboard/SAC_{}".format(time.time()))
+        self.writer = tf.summary.create_file_writer("./tensorboard/SAC_{}".format(time.time()))
 
-        self.runner = Runner(self.env, self.behavioral_policy, self.buffer, writer, self.action_noise, learning_starts=learning_starts)
+        self.runner = Runner(self.env, self.behavioral_policy, self.buffer, self.writer, self.action_noise, learning_starts=learning_starts)
 
         self.actor_optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate)
         self.critic_optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate)
@@ -192,7 +193,6 @@ class SAC(object):
         # tf.config.experimental_run_functions_eagerly(False)
 
         self.log_ent_coeff = tf.Variable(0., dtype=tf.float32, name='log_ent_coeff')
-        self.ent_coeff = tf.exp(self.log_ent_coeff)
         self.target_entropy = -np.prod(self.env.action_space.shape).astype(np.float32)
 
     def learn(self, total_timesteps):
@@ -229,20 +229,20 @@ class SAC(object):
         return q1_loss + q2_loss
 
     @tf.function
-    def get_a_loss(self, q1_pi, log_pi_a):
+    def get_a_loss(self, q1_pi, log_pi_a, ent_coeff):
         # actor loss: actor is meant to maximize v_value = E[q_any - ent_coeff*log_pi]
-        actor_loss = tf.negative(tf.reduce_mean(q1_pi - self.ent_coeff * log_pi_a))
+        actor_loss = tf.negative(tf.reduce_mean(q1_pi - ent_coeff * log_pi_a))
 
         return actor_loss
 
     @tf.function
-    def get_v_loss(self, states_t0, q1_pi, on_a, log_pi_a):
+    def get_v_loss(self, states_t0, q1_pi, on_a, log_pi_a, ent_coeff):
 
         q2_pi = self.behavioral_policy.get_q(states_t0, actions=on_a, index=1)
 
         q_min = tf.minimum(q1_pi, q2_pi)
 
-        v_target = tf.stop_gradient(q_min - self.ent_coeff * log_pi_a)
+        v_target = tf.stop_gradient(q_min - ent_coeff * log_pi_a)
 
         v = self.behavioral_policy.get_v(states_t0)
 
@@ -268,8 +268,9 @@ class SAC(object):
         with tf.GradientTape() as actor_tape:
             actor_tape.watch(actor_variables)
             _, on_a, log_pi_a = self.behavioral_policy.get_a(states_t0, training=False)
+            ent_coeff = tf.exp(self.log_ent_coeff)
             q1_pi = self.behavioral_policy.get_q(states_t0, actions=on_a, index=0)
-            actor_loss = self.get_a_loss(q1_pi, log_pi_a)
+            actor_loss = self.get_a_loss(q1_pi, log_pi_a, ent_coeff)
 
         actor_grad = actor_tape.gradient(actor_loss, actor_variables)
         self.actor_optimizer.apply_gradients(zip(actor_grad, actor_variables))
@@ -277,7 +278,7 @@ class SAC(object):
         with tf.GradientTape() as critic_tape:
             critic_tape.watch(critic_variables)
             critic_loss = self.get_q_loss(states_t0, actions, rewards, states_t1, dones) + \
-            self.get_v_loss(states_t0, q1_pi, on_a, log_pi_a)
+            self.get_v_loss(states_t0, q1_pi, on_a, log_pi_a, ent_coeff)
 
         critic_grad = critic_tape.gradient(critic_loss, critic_variables)
         self.critic_optimizer.apply_gradients(zip(critic_grad, critic_variables))
@@ -287,7 +288,21 @@ class SAC(object):
             entropy_loss = self.get_adaptive_entropy_loss(log_pi_a)
 
         entropy_grad = entropy_tape.gradient(entropy_loss,self.log_ent_coeff)
-
         self.entropy_optimizer.apply_gradients([(entropy_grad,self.log_ent_coeff)])
 
         self.target_policy.interpolate_variables(self.tau, self.behavioral_policy)
+
+        tf.print(ent_coeff)
+        tf.print(actor_loss)
+        tf.print("___________")
+
+    def predict(self, observation, deterministic = True):
+        observation = observation.reshape((1, observation.size))
+        a_det, a_sto, _ = self.behavioral_policy.get_a(observation, training=False)
+
+        a = a_det if deterministic else a_sto
+        a = self.runner.scale_action(a)
+
+        return a
+
+

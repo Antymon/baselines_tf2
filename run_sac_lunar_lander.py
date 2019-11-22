@@ -33,11 +33,16 @@ if __name__ == '__main__':
     # kwargs['action_noise'] = NormalNoise(stddev)
 
     model = SAC(env, **kwargs)
-    model.learn(total_timesteps=1e6)
+    model.learn(total_timesteps=3e5)
 
-    # obs = env.reset()
-    # for i in range(1000):
-    #     action, _states = model.predict(obs)
-    #     obs, rewards, dones, info = env.step(action)
-    #     env.render()
-    #     time.sleep(0.017)
+    obs = env.reset()
+    reward = 0
+    while(True):
+        action = model.predict(obs)
+        obs, rewards, dones, info = env.step(action)
+        reward+=rewards[0]
+        env.render()
+        time.sleep(0.017)
+        if dones[0]:
+            print("eval ep rew: {}".format(reward))
+            reward=0
