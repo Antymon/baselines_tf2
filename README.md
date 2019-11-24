@@ -11,8 +11,8 @@ Tensorflow 2.0 is needed. As of November 2019 this is a default version when pul
 Examples
 --------
 There are 2 tested SAC hyperparameter configurations in a form of `run_sac_*.py` under the root directory. 
-Those are a simple Continuous Lunar Lander environment from OpenAI Gym framework @Brockman2016, 
-second is a more complicated 18-DOF Hexapod robot setup through DART simulation engine @Lee2018. Hexapod robot @Cully2015 is tasked to walk as far as possible along X-axis ([example recording](https://drive.google.com/open?id=1ds_VrjTDdhqWkh40eF1vscetfUyJUlVm)).
+Those are: a) simple Continuous Lunar Lander environment from OpenAI Gym framework @Brockman2016, 
+b) more complicated 18-DOF Hexapod robot setup through DART simulation engine @Lee2018. Hexapod robot @Cully2015 is tasked to walk as far as possible along X-axis ([example recording](https://drive.google.com/open?id=1ds_VrjTDdhqWkh40eF1vscetfUyJUlVm)).
 
 
 1) To set up Lunar Lander OpenAI Gym with Box2D is needed.
