@@ -2,7 +2,7 @@ Baselines TF2.0
 ==========
 Selected Deep RL algorithms using Tensorflow 2.0's Autograph and `tf.function` which are described as a merger of 
 a priori computational graph definition and eager execution. Algorithms were largely ported from Stable Baselines @Hill2018 Deep Reinforcement Learning suite (with some utils brought over).
-At the moment SAC and DDPG are available.
+At the moment SAC @Haarnoja2018 and DDPG @Silver2014 are available.
 
 Prerequisites
 --------
@@ -40,6 +40,9 @@ References
 2. Greg  Brockman,  Vicki  Cheung,  Ludwig  Pettersson,  Jonas  Schneider,  John Schulman,  Jie  Tang,  and  Wojciech Zaremba.   Openai  gym.arXiv  preprintarXiv:1606.01540, 2016
 3. Antoine Cully, Jeff Clune, Danesh Tarapore, and Jean-Baptiste Mouret. Robots that can adapt like animals. Nature, 521(7553):503, 2015
 5. Sehoon  Ha. Pydart2:   A python binding of  DART. https://github.com/sehoonha/pydart2, 2016
+0. Haarnoja, Tuomas, Aurick Zhou, Pieter Abbeel, and Sergey Levine. "Soft actor-critic: Off-policy maximum entropy deep reinforcement learning with a stochastic actor." arXiv preprint arXiv:1801.01290 (2018).
+0. Haarnoja, Tuomas, Aurick Zhou, Kristian Hartikainen, George Tucker, Sehoon Ha, Jie Tan, Vikash Kumar et al. "Soft actor-critic algorithms and applications." arXiv preprint arXiv:1812.05905 (2018).
 6. Ashley Hill, Antonin Raffin, Maximilian Ernestus, Adam Gleave, Rene Traore, Prafulla Dhariwal, Christopher Hesse, Oleg Klimov, Alex Nichol, Matthias Plap-pert,  Alec Radford,  John Schulman,  Szymon Sidor,  and Yuhuai Wu.   Stablebaselines.https://github.com/hill-a/stable-baselines, 2018
 8. Jeongseok Lee, Michael Grey, Sehoon Ha, Tobias Kunz, Sumit Jain, Yuting Ye, Siddhartha Srinivasa, Mike Stilman, and C Karen Liu.  Dart:  Dynamic animation and robotics toolkit.The Journal of Open Source Software, 3:500, 02 2018
 9. Dirk Merkel. Docker: Lightweight Linux containers for consistent development and deployment. Linux J., 2014(239), March 2014
+0. Silver, David, Guy Lever, Nicolas Heess, Thomas Degris, Daan Wierstra, and Martin Riedmiller. "Deterministic policy gradient algorithms." 2014.
