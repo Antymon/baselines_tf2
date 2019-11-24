@@ -16,7 +16,7 @@ b) more complicated 18-DOF Hexapod robot setup through DART simulation engine @L
 
 
 1) To set up Lunar Lander the OpenAI's Gym with Box2D is needed (can be found at respective pages, helper script for the latter under Linux is provided),
-2) Setup of a Hexapod is more involved - I can publish a Docker Ubuntu container at a request.
+2) Setup of a Hexapod is more involved - I can publish a Docker Ubuntu container at a request (based on repositories mentioned below).
 
 State of the project
 --------
