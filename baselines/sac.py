@@ -21,7 +21,8 @@ class SAC_MLP_Networks(ActorCriticMLPs):
             super().__init__(action_space_size, obs_space_size, layers, act_fun, layer_norm, create_actor=False,
                              qs_num=0, vs_num=1)
         else:
-            super().__init__(action_space_size, obs_space_size, layers, act_fun, layer_norm, create_actor=True, qs_num=2,
+            super().__init__(action_space_size, obs_space_size, layers, act_fun, layer_norm, create_actor=True,
+                             qs_num=2,
                              vs_num=1)
 
     def create_actor_output(self, a_front):
@@ -68,6 +69,7 @@ class SAC_MLP_Networks(ActorCriticMLPs):
 
         squashed_mean_action = tf.tanh(mu)
         squashed_action = tf.tanh(action)
+
         # based on change of variables under squashing f(x) = tanh(x) which affects distribution
         # described under appendix C of https://arxiv.org/pdf/1812.05905.pdf
 
@@ -109,19 +111,10 @@ class Runner(object):
 
                 a_scaled = self.scale_action(a)
 
-            # true only for action spaces originally in tanh codomain
-            # if np.sum(np.abs(a_scaled-a)) > 1e-3:
-            #     print(a_scaled)
-            #     print(a)
-            #     assert False
-
             a = np.atleast_2d(a)
             a_scaled = np.atleast_2d(a_scaled)
 
             st1, reward, done, _ = self.env.step(a_scaled)
-
-            # if done:
-            #     print('episode finished {}'.format(self.num_timesteps))
 
             if self.writer is not None:
                 self.write_to_tensorboard(reward, done)
@@ -136,7 +129,7 @@ class Runner(object):
         return (a + 1.) / 2 * (self.env.action_space.high - self.env.action_space.low) + self.env.action_space.low
 
     def undo_scale_action(self, a):
-        return (a - self.env.action_space.low)/(self.env.action_space.high - self.env.action_space.low)*2 - 1.
+        return (a - self.env.action_space.low) / (self.env.action_space.high - self.env.action_space.low) * 2 - 1.
 
     def write_to_tensorboard(self, reward, done):
         ep_rew = np.array([reward]).reshape((1, -1))
@@ -144,7 +137,9 @@ class Runner(object):
         self.episode_reward = total_episode_reward_logger(self.episode_reward, ep_rew, ep_done,
                                                           self.writer, self.num_timesteps)
 
-
+# Original papers:
+# https://arxiv.org/pdf/1801.01290.pdf
+# https://arxiv.org/pdf/1812.05905.pdf
 class SAC(object):
     def __init__(self,
                  env,
@@ -180,13 +175,15 @@ class SAC(object):
 
         self.target_policy = SAC_MLP_Networks(action_space_size, observation_space_size, layers, act_fun, layer_norm,
                                               target_network=True)
-        self.behavioral_policy = SAC_MLP_Networks(action_space_size, observation_space_size, layers, act_fun, layer_norm)
+        self.behavioral_policy = SAC_MLP_Networks(action_space_size, observation_space_size, layers, act_fun,
+                                                  layer_norm)
 
         self.buffer = Buffer(self.buffer_size, action_space_size, observation_space_size, reward_scaling)
 
         self.writer = tf.summary.create_file_writer("./tensorboard/SAC_{}".format(time.time()))
 
-        self.runner = Runner(self.env, self.behavioral_policy, self.buffer, self.writer, self.action_noise, learning_starts=learning_starts)
+        self.runner = Runner(self.env, self.behavioral_policy, self.buffer, self.writer, self.action_noise,
+                             learning_starts=learning_starts)
 
         self.actor_optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate)
         self.critic_optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate)
@@ -213,8 +210,8 @@ class SAC(object):
                     # data = tuple(tf.convert_to_tensor(d) for d in data)
                     ent_coeff, actor_loss = self.train_step(*data)
 
-                    write_reward(self.writer,ent_coeff,current_rollout_steps,"ent_coeff")
-                    write_reward(self.writer,actor_loss,current_rollout_steps,"actor_loss")
+                    write_reward(self.writer, ent_coeff, current_rollout_steps, "ent_coeff")
+                    write_reward(self.writer, actor_loss, current_rollout_steps, "actor_loss")
 
     @tf.function
     def get_q_loss(self, states_t0, actions, rewards, states_t1, dones):
@@ -258,9 +255,9 @@ class SAC(object):
         return v_loss
 
     @tf.function
-    def get_adaptive_entropy_loss(self,log_pi_a):
+    def get_adaptive_entropy_loss(self, log_pi_a):
         # justified in https://arxiv.org/pdf/1812.05905.pdf in a rather involved way
-        return -tf.reduce_mean(self.log_ent_coeff*tf.stop_gradient(log_pi_a+self.target_entropy))
+        return -tf.reduce_mean(self.log_ent_coeff * tf.stop_gradient(log_pi_a + self.target_entropy))
 
     @tf.function
     def train_step(self, states_t0, actions, rewards, states_t1, dones):
@@ -285,7 +282,7 @@ class SAC(object):
         with tf.GradientTape() as critic_tape:
             critic_tape.watch(critic_variables)
             critic_loss = self.get_q_loss(states_t0, actions, rewards, states_t1, dones) + \
-            self.get_v_loss(states_t0, q1_pi, on_a, log_pi_a, ent_coeff)
+                          self.get_v_loss(states_t0, q1_pi, on_a, log_pi_a, ent_coeff)
 
         critic_grad = critic_tape.gradient(critic_loss, critic_variables)
         self.critic_optimizer.apply_gradients(zip(critic_grad, critic_variables))
@@ -294,14 +291,14 @@ class SAC(object):
             entropy_tape.watch(self.log_ent_coeff)
             entropy_loss = self.get_adaptive_entropy_loss(log_pi_a)
 
-        entropy_grad = entropy_tape.gradient(entropy_loss,self.log_ent_coeff)
-        self.entropy_optimizer.apply_gradients([(entropy_grad,self.log_ent_coeff)])
+        entropy_grad = entropy_tape.gradient(entropy_loss, self.log_ent_coeff)
+        self.entropy_optimizer.apply_gradients([(entropy_grad, self.log_ent_coeff)])
 
         self.target_policy.interpolate_variables(self.tau, self.behavioral_policy)
 
         return ent_coeff, actor_loss
 
-    def predict(self, observation, deterministic = True):
+    def predict(self, observation, deterministic=True):
         observation = observation.reshape((1, observation.size))
         a_det, a_sto, _ = self.behavioral_policy.get_a(observation, training=False)
 
@@ -309,5 +306,3 @@ class SAC(object):
         a = self.runner.scale_action(a)
 
         return a
-
-
