@@ -1,9 +1,7 @@
 from baselines.sac import SAC
-from baselines import NormalNoise
 
 import gym
 import tensorflow as tf
-import time
 
 from baselines.deps.vec_env.vec_normalize import VecNormalize
 from baselines.deps.vec_env.dummy_vec_env import DummyVecEnv
@@ -11,42 +9,28 @@ from baselines.deps.vec_env.dummy_vec_env import DummyVecEnv
 if __name__ == '__main__':
 
     env = gym.make('DartHexapod-v2')
-    env = DummyVecEnv([lambda: env])  # The algorithms require a vectorized environment to run
-    env = VecNormalize(env, norm_obs=True, norm_reward=True,clip_obs=10.)
+    env = DummyVecEnv([lambda: env])
+    env = VecNormalize(env, norm_obs=True, norm_reward=False,clip_obs=10.)
 
     kwargs = dict(
+        reward_scaling=1000., #only meaninggful non-default in this setting
         nb_rollout_steps=1,
         nb_train_steps=1,
-        batch_size=512,
-        buffer_size=500000,
+        batch_size=64,
+        buffer_size=int(5e5),
         learning_rate=3e-4,
         gamma=0.99,
         tau=0.005,
         action_noise=None,
         layer_norm=False,
-        learning_starts=10000
+        learning_starts=int(1e4)
     )
 
     policy_kwargs = dict()
-    policy_kwargs['act_fun'] = tf.nn.tanh
-    policy_kwargs['layers'] = [6,6]
+    policy_kwargs['act_fun'] = tf.nn.relu
+    policy_kwargs['layers'] = [64,64]
 
     kwargs['policy_kwargs'] = policy_kwargs
 
-    # stddev = 0.25
-    # kwargs['action_noise'] = NormalNoise(stddev)
-
     model = SAC(env, **kwargs)
-    model.learn(total_timesteps=2e7)
-
-    obs = env.reset()
-    reward = 0
-    while(True):
-        action = model.predict(obs)
-        obs, rewards, dones, info = env.step(action)
-        reward+=rewards[0]
-        env.render()
-        time.sleep(0.017)
-        if dones[0]:
-            print("eval ep rew: {}".format(reward))
-            reward=0
+    model.learn(total_timesteps=4e6)

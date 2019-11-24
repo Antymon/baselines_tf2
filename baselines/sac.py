@@ -120,6 +120,9 @@ class Runner(object):
 
             st1, reward, done, _ = self.env.step(a_scaled)
 
+            # if done:
+            #     print('episode finished {}'.format(self.num_timesteps))
+
             if self.writer is not None:
                 self.write_to_tensorboard(reward, done)
 
@@ -146,6 +149,7 @@ class SAC(object):
     def __init__(self,
                  env,
                  policy_kwargs,
+                 reward_scaling=1.,
                  nb_rollout_steps=1,
                  nb_train_steps=1,
                  batch_size=64,
@@ -178,7 +182,7 @@ class SAC(object):
                                               target_network=True)
         self.behavioral_policy = SAC_MLP_Networks(action_space_size, observation_space_size, layers, act_fun, layer_norm)
 
-        self.buffer = Buffer(self.buffer_size, action_space_size, observation_space_size)
+        self.buffer = Buffer(self.buffer_size, action_space_size, observation_space_size, reward_scaling)
 
         self.writer = tf.summary.create_file_writer("./tensorboard/SAC_{}".format(time.time()))
 
