@@ -4,7 +4,7 @@ import numpy as np
 import time
 
 from baselines.common.actor_critic_mlps import ActorCriticMLPs
-from baselines.common.utils import gaussian_likelihood, total_episode_reward_logger, write_reward
+from baselines.common.utils import gaussian_likelihood, total_episode_reward_logger, write_scalar
 
 from baselines.common import Buffer
 
@@ -210,8 +210,8 @@ class SAC(object):
                     # data = tuple(tf.convert_to_tensor(d) for d in data)
                     ent_coeff, actor_loss = self.train_step(*data)
 
-                    write_reward(self.writer, ent_coeff, current_rollout_steps, "ent_coeff")
-                    write_reward(self.writer, actor_loss, current_rollout_steps, "actor_loss")
+                    write_scalar(self.writer, ent_coeff, current_rollout_steps, "ent_coeff")
+                    write_scalar(self.writer, actor_loss, current_rollout_steps, "actor_loss")
 
     @tf.function
     def get_q_loss(self, states_t0, actions, rewards, states_t1, dones):
