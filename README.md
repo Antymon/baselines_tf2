@@ -15,8 +15,12 @@ Those are: a) simple Continuous Lunar Lander environment from OpenAI Gym framewo
 b) more complicated 18-DOF Hexapod robot setup through DART simulation engine @Lee2018. Hexapod robot @Cully2015 is tasked to walk as far as possible along X-axis ([example recording](https://drive.google.com/open?id=1ds_VrjTDdhqWkh40eF1vscetfUyJUlVm)).
 
 
-1) To set up Lunar Lander the OpenAI's Gym with Box2D is needed (can be found at respective pages, helper script for the latter under Linux is provided),
-2) Setup of a Hexapod is more involved - I can publish a Docker Ubuntu container at a request (based on repositories mentioned below).
+1) To set up Lunar Lander the OpenAI's Gym with Box2D is needed (can be found at respective pages, helper script for the latter under Linux is provided). Solved environment yields reward of 200 and above.
+
+2) Setup of a Hexapod is more involved - I can publish a Docker Linux container at a request (based on repositories mentioned below). Generally a reward of under 2 signifies hexapod properly walking. TensorBoard charts obtained from the example show that SAC can reach that state in just 2M frames (and hyper parameters were not tuned at all):
+
+![SAC_hexapod_training](https://gdurl.com/VmRT)
+
 
 State of the project
 --------
