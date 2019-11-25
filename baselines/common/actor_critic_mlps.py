@@ -78,10 +78,10 @@ class ActorCriticMLPs(ABC):
     @tf.function
     def get_v(self, states, index=0):
 
-        q_input = tf.concat([states], -1)
-        q_vals = self._vs[index](q_input, training=True)
+        v_input = tf.concat([states], -1)
+        v_vals = self._vs[index](v_input, training=True)
 
-        return q_vals
+        return v_vals
 
     @abstractmethod
     def get_interpolation_variables(self):

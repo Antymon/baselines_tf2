@@ -39,10 +39,10 @@ class SAC_MLP_Networks(ActorCriticMLPs):
         self._std_layer.build(input_shape=(self.layers[-1],))
 
         a_front.build()
-        self.a_front = a_front
+        self._a_front = a_front
 
     def get_a_trainable_variables(self):
-        return self.a_front.trainable_variables
+        return self._a_front.trainable_variables
 
     def get_q_trainable_variables(self, index):
         return self._qs[index].trainable_variables
@@ -55,7 +55,7 @@ class SAC_MLP_Networks(ActorCriticMLPs):
 
     @tf.function
     def get_a(self, states, training):
-        common_input = self.a_front(states, training=training)
+        common_input = self._a_front(states, training=training)
 
         mu = self._mu_layer(common_input, training=training)
 

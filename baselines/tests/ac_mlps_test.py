@@ -65,13 +65,6 @@ class AC_MLPs_Test(unittest.TestCase):
         self.assertEqual(len(nets._qs),num_qs)
         self.assertEqual(len(nets._vs),num_vs)
 
-        q=nets._qs[0]
-
-        for layer in q.layers:
-            print(layer.output_shape)
-
-        print(q.summary())
-
 
 
 
