@@ -24,7 +24,7 @@ b) more complicated 18-DOF Hexapod robot setup through DART simulation engine @L
 
 State of the project
 --------
-This a quick proof-of-concept set up for educational purposes. SAC should be easy to follow although generally codebase is not High Valyrian. Let me know if this project is useful for you!
+This a quick proof-of-concept set up for educational purposes. Let me know if this project is useful for you!
 
 <a name="repos"></a>Related repositories
 ==========
