@@ -24,7 +24,13 @@ class SACRunnerTest(unittest.TestCase):
         run = Runner(env,policy,b, learning_starts=0)
 
         self.assertFalse(b.can_sample(2))
+
+        # for some reason calling into get_a tf function causes clashes with other tests
+        # therefore eager execution used here
+        # this should be unnecessary when test is run in isolation
+        tf.config.experimental_run_functions_eagerly(True)
         run.run(2)
+        tf.config.experimental_run_functions_eagerly(False)
         self.assertTrue(b.can_sample(2))
 
 if __name__ == '__main__':

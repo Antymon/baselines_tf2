@@ -17,13 +17,16 @@ LOG_STD_MIN = -20
 class SAC_MLP_Networks(ActorCriticMLPs):
 
     def __init__(self, action_space_size, obs_space_size, layers, act_fun, layer_norm=False, target_network=False):
-        if target_network:
-            super().__init__(action_space_size, obs_space_size, layers, act_fun, layer_norm, create_actor=False,
-                             qs_num=0, vs_num=1)
-        else:
-            super().__init__(action_space_size, obs_space_size, layers, act_fun, layer_norm, create_actor=True,
-                             qs_num=2,
-                             vs_num=1)
+        super(SAC_MLP_Networks, self).__init__(
+            action_space_size,
+            obs_space_size,
+            layers,
+            act_fun,
+            layer_norm,
+            create_actor=not target_network,
+            qs_num=0 if target_network else 2,
+            vs_num=1
+        )
 
     def create_actor_output(self, a_front):
         self._mu_layer = tf.keras.layers.Dense(
@@ -136,6 +139,7 @@ class Runner(object):
         ep_done = np.array([done]).reshape((1, -1))
         self.episode_reward = total_episode_reward_logger(self.episode_reward, ep_rew, ep_done,
                                                           self.writer, self.num_timesteps)
+
 
 # Original papers:
 # https://arxiv.org/pdf/1801.01290.pdf

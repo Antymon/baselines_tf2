@@ -56,7 +56,6 @@ class AC_MLPs_Test(unittest.TestCase):
     #         self.assertTrue(False,"Expected AssertionError but none occurred")
 
     def test_successful_creation(self):
-
         num_qs=2
         num_vs=1
 

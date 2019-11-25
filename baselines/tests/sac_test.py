@@ -22,6 +22,21 @@ class SACTest(unittest.TestCase):
         self.assertEqual((1,action_space_size),mean_action.shape)
         self.assertEqual((1,action_space_size),action.shape)
 
+
+    def test_MLPs_counts(self):
+        env = gym.make('MountainCarContinuous-v0')
+        policy_kwargs = {'layers': [4, 4], 'act_fun': tf.keras.activations.tanh}
+
+        alg = SAC(env, policy_kwargs, action_noise=NormalNoise(0.25))
+
+        self.assertEqual(len(alg.behavioral_policy._qs),2)
+        self.assertEqual(len(alg.behavioral_policy._vs),1)
+        self.assertTrue(hasattr(alg.behavioral_policy,'_a_front'))
+
+        self.assertEqual(len(alg.target_policy._qs),0)
+        self.assertEqual(len(alg.target_policy._vs),1)
+        self.assertFalse(hasattr(alg.target_policy,'_a_front'))
+
     def test_startup(self):
         env = gym.make('MountainCarContinuous-v0')
         policy_kwargs = {'layers': [4, 4], 'act_fun': tf.keras.activations.tanh}
