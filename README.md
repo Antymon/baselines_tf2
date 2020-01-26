@@ -19,7 +19,7 @@ b) more complicated 18-DOF Hexapod robot setup through DART simulation engine @L
 
 2) Setup of a Hexapod is more involved - I can publish a Docker Linux container at a request (based on repositories mentioned below). Generally a reward of under 2 signifies hexapod properly walking. TensorBoard charts obtained from the example show that SAC can reach that state in just 2M frames (and hyper parameters were not tuned at all):
 
-![SAC_hexapod_training](https://gdurl.com/VmRT)
+![SAC_hexapod_training](SAC_hexapod_cl.png)
 
 
 State of the project
